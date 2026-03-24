@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Arena</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚡</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/three/build/three.module.js",
+        "three/addons/": "/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- ─── LOBBY ─────────────────────────────────────────────────────────── -->
+  <div id="lobby" class="lobby-overlay">
+
+    <div class="lobby-header">
+      <div class="lobby-logo">⚡</div>
+      <div class="lobby-title">ENERGY ARENA</div>
+      <div class="lobby-sub">Solo arena · 10 min · highest score wins · top 3 claim victory</div>
+    </div>
+
+    <div class="lobby-char-section">
+      <div class="lobby-section-label">── SELECT YOUR ABILITY ──</div>
+      <div class="char-cards">
+
+        <div class="char-card selected" data-char="telepotu">
+          <div class="char-badge">WARP</div>
+          <div class="char-icon">⚡</div>
+          <div class="char-name">TELEPOTU</div>
+          <div class="char-ability-title">CLASS ABILITY [Q]</div>
+          <div class="char-ability">Instantly swap positions with a random enemy anywhere on the map</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
+          </div>
+        </div>
+
+        <div class="char-card" data-char="chumantr">
+          <div class="char-badge">STEALTH</div>
+          <div class="char-icon">👻</div>
+          <div class="char-name">CHUMANTR</div>
+          <div class="char-ability-title">CLASS ABILITY [Q]</div>
+          <div class="char-ability">Vanish completely for 10 seconds — cannot shoot while cloaked</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
+          </div>
+        </div>
+
+        <div class="char-card" data-char="denja">
+          <div class="char-badge">PASSIVE</div>
+          <div class="char-icon">🔥</div>
+          <div class="char-name">DENJA</div>
+          <div class="char-ability-title">PASSIVE ABILITY</div>
+          <div class="char-ability">Move at 2× speed — max health permanently capped at 75%</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:100%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:75%"></span></span>
+          </div>
+        </div>
+
+        <div class="char-card" data-char="mednix">
+          <div class="char-badge">SURGE</div>
+          <div class="char-icon">💊</div>
+          <div class="char-name">MEDNIX</div>
+          <div class="char-ability-title">CLASS ABILITY [Q]</div>
+          <div class="char-ability">Instantly restore 1–50 random energy — luck decides how much you get</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
+          </div>
+        </div>
+
+        <div class="char-card" data-char="tank">
+          <div class="char-badge">PASSIVE</div>
+          <div class="char-icon">🛡</div>
+          <div class="char-name">TANK</div>
+          <div class="char-ability-title">PASSIVE ABILITY</div>
+          <div class="char-ability">Double max HP but permanently half movement speed</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:30%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:100%; background:linear-gradient(90deg,#49a7ff,#74f0c6)"></span></span>
+          </div>
+        </div>
+
+        <div class="char-card" data-char="anchor">
+          <div class="char-badge">PASSIVE</div>
+          <div class="char-icon">⚓</div>
+          <div class="char-name">ANCHOR</div>
+          <div class="char-ability-title">PASSIVE ABILITY</div>
+          <div class="char-ability">SUPER and SHIELD cost 50% less HP — no active ability</div>
+          <div class="char-stat-row">
+            <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
+            <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="lobby-join">
+      <input id="nameInput" type="text" placeholder="Enter your callsign" maxlength="20" autofocus>
+      <button id="joinBtn">⚡ ENTER ARENA</button>
+    </div>
+
+    <div class="lobby-controls-bar">
+      <span>WASD Move</span><span class="ctl-sep">·</span>
+      <span>Mouse Aim</span><span class="ctl-sep">·</span>
+      <span>LClick Shoot / Release Charge</span><span class="ctl-sep">·</span>
+      <span>RClick Hold Charge</span><span class="ctl-sep">·</span>
+      <span>R Shield</span><span class="ctl-sep">·</span>
+      <span>E Super</span><span class="ctl-sep">·</span>
+      <span>Q Ability</span><span class="ctl-sep">·</span>
+      <span>C Crouch</span><span class="ctl-sep">·</span>
+      <span>F Scores</span>
+    </div>
+
+  </div>
+
+  <!-- ─── GAME ──────────────────────────────────────────────────────────── -->
+  <div id="gameStage" class="shell">
+    <canvas id="canvas"></canvas>
+
+    <!-- Crosshair -->
+    <div class="crosshair" id="crosshair"></div>
+
+    <!-- Click-to-lock overlay -->
+    <div id="lockPrompt">Click to play</div>
+
+    <!-- Hit flash -->
+    <div id="hitFlash"></div>
+
+    <!-- Cloak overlay (chumantr invisible) -->
+    <div id="cloakOverlay"></div>
+
+    <!-- Teleport flash -->
+    <div id="teleportFlash"></div>
+
+    <!-- Respawn timer -->
+    <div id="respawnOverlay">
+      <div id="respawnBox">
+        <div id="respawnLabel">YOU DIED</div>
+        <div id="respawnCount">5</div>
+        <div id="respawnSub">respawning…</div>
+      </div>
+    </div>
+
+    <!-- Jump charge bar -->
+    <div id="jumpChargeBar"><div id="jumpChargeFill"></div></div>
+
+    <!-- Super mode screen-edge glow -->
+    <div id="superOverlay"></div>
+
+    <!-- Crouch screen-edge glow -->
+    <div id="crouchOverlay"></div>
+
+    <!-- Crouch HUD (center bottom) -->
+    <div id="crouchHUD">
+      <div id="crouchLabel">▼ CROUCHING  ·  +3× regen</div>
+    </div>
+
+    <!-- Shield screen-edge glow -->
+    <div id="shieldOverlay"></div>
+
+    <!-- Shield HUD (center bottom, above super) -->
+    <div id="shieldHUD">
+      <div id="shieldLabel">🛡 SHIELD ACTIVE</div>
+      <div id="shieldBarWrap"><div id="shieldBarFill"></div></div>
+    </div>
+
+    <!-- Kill regen boost screen-edge glow -->
+    <div id="killBoostOverlay"></div>
+
+    <!-- Kill regen boost HUD -->
+    <div id="killBoostHUD">
+      <span id="killBoostIcon">⚡</span>
+      <span id="killBoostText">KILL BOOST</span>
+      <span id="killBoostMult"></span>
+      <span id="killBoostTimer"></span>
+    </div>
+
+    <!-- Ability ready toast (center screen) -->
+    <div id="abilityToast"></div>
+
+    <!-- Super mode HUD (center bottom) -->
+    <div id="superHUD">
+      <div id="superLabel"></div>
+      <div id="superBarWrap"><div id="superBarFill"></div></div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud">
+
+      <div id="topBar">
+        <span id="myScore">Score: 0</span>
+        <span id="matchTimer">10:00</span>
+        <span id="playerCount">0/50</span>
+        <span id="aliveCount">0 alive</span>
+        <span id="pingDisplay">-- ms</span>
+      </div>
+
+      <!-- High-value target badge -->
+      <div id="targetBadge" class="target-badge"></div>
+
+      <!-- Target directional arrow (screen edge) -->
+      <div id="targetArrow">
+        <span id="targetDist"></span>
+      </div>
+
+      <div id="killFeed"></div>
+
+      <!-- Top-3 leaderboard -->
+      <div id="leaderboard"></div>
+
+      <div id="bottomBar">
+        <div id="bottomRow">
+          <div id="vitals">
+            <span id="hpLabel">ENERGY</span>
+            <span id="healthVal">200</span>
+          </div>
+
+          <div id="weaponPanel">
+            <div id="chargePips">
+              <span class="charge-pip"></span>
+              <span class="charge-pip"></span>
+              <span class="charge-pip"></span>
+              <span class="charge-pip"></span>
+            </div>
+            <div id="chargeHint">hold RClick to charge</div>
+            <div id="ammoLine"></div>
+            <div id="classAbilityLine">
+              <span id="classAbilityIcon"></span>
+              <span id="classAbilityName"></span>
+              <span id="classAbilityCD"></span>
+              <div id="classAbilityCDBar"><div id="classAbilityCDFill"></div></div>
+            </div>
+            <!-- kept hidden for JS compat -->
+            <div id="modeLine" style="display:none"></div>
+            <div id="reloadLine" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- full-width energy bar strip — sits flush at the very bottom -->
+        <div id="hpBar"><div id="hpFill"></div></div>
+      </div>
+
+    </div><!-- #hud -->
+
+    <!-- TAB Scoreboard overlay -->
+    <div id="scoreboardOverlay">
+      <div id="scoreboardInner">
+        <div id="scoreboardTitle">SCOREBOARD</div>
+        <div id="scoreboardList"></div>
+      </div>
+    </div>
+
+    <!-- Chat input -->
+    <div id="chatWrap">
+      <input id="chatInput" type="text" maxlength="120" placeholder="Say something…" autocomplete="off">
+      <span id="chatHint">ENTER send · ESC cancel</span>
+    </div>
+
+  </div><!-- #gameStage -->
+
+  <!-- ─── END SCREEN ────────────────────────────────────────────────────── -->
+  <div id="endScreen" style="display:none">
+    <div class="end-card">
+      <p class="eyebrow">Match Over</p>
+      <h1>Winners</h1>
+      <div id="winnerList"></div>
+      <button id="replayBtn">Play Again</button>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
