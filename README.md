@@ -1,4 +1,4 @@
-# Energy Arena — Open Source Multiplayer FPS Browser Game
+# L-Town — Open Source Multiplayer FPS Browser Game
 
 > A free, open-source, browser-based multiplayer first-person shooter built with **Node.js**, **WebSockets**, and **Three.js**. No download required — just open a URL and play instantly.
 
@@ -11,9 +11,9 @@
 
 ---
 
-## What is Energy Arena?
+## What is L-Town?
 
-**Energy Arena** is a lightweight, open-source multiplayer FPS game that runs entirely in the browser. Up to **300 players** compete simultaneously on a procedurally generated 3D arena map. The match lasts **10 minutes** — the top 3 players by score claim victory.
+**L-Town** is a lightweight, open-source multiplayer FPS game that runs entirely in the browser. Up to **300 players** compete simultaneously on a procedurally generated 3D arena map. The match lasts **10 minutes** — the top 3 players by score claim victory.
 
 There is nothing to install for players. Open the game URL, pick a character, enter a callsign, and start shooting.
 
@@ -179,7 +179,7 @@ The arena is **750 × 750 units** and regenerates each match using a seeded PRNG
 
 ## Self-Hosting & Deployment
 
-Energy Arena is designed to be self-hosted. The server is a single `server.js` file with two dependencies (`ws` and `three`). It can be deployed to any Linux VPS, cloud container, or PaaS that supports Node.js.
+L-Town is designed to be self-hosted. The server is a single `server.js` file with two dependencies (`ws` and `three`). It can be deployed to any Linux VPS, cloud container, or PaaS that supports Node.js.
 
 ```bash
 # Production start

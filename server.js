@@ -1013,5 +1013,5 @@ wss.on('connection', ws => {
 
 const PORT = process.env.PORT ?? 30300;
 server.listen(PORT, '0.0.0.0', () =>
-  console.log(`Energy Arena running → http://0.0.0.0:${PORT}`)
+  console.log(`L-Town running → http://0.0.0.0:${PORT}`)
 );
