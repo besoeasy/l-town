@@ -24,10 +24,13 @@ There is nothing to install for players. Open the game URL, pick a character, en
 - **True multiplayer** — up to 300 concurrent players per server via WebSockets
 - **Procedurally generated maps** — every match spawns a unique 750×750 unit arena with 8 named points of interest across two biomes (Terra and Barren)
 - **3D first-person gameplay** — rendered in real time with Three.js and WebGL
-- **Three playable characters** — each with a unique ability activated by `Q`:
-  - ⚡ **Telepotu** — teleport-swap positions with a random enemy (30s cooldown)
+- **Six playable characters** — each with a unique ability or passive trait:
+  - ⚡ **Telepotu** — instant swap positions with a random enemy anywhere on the map (60s class ability cooldown)
   - 👻 **Chumantr** — go invisible for 10 seconds (can't shoot while cloaked, 30s cooldown)
-  - 🔥 **Denja** — passive 2× permanent speed boost, health capped at 75%
+  - 🔥 **Denja** — passive: permanent 2× movement speed; max health reduced to 75%
+  - 💊 **Mednix** — active: restore a small random amount of HP (1–50) on use (20s cooldown)
+  - 🛡 **Tank** — passive: double max HP but permanently reduced movement speed
+  - ⚓ **Anchor** — passive: reduced HP cost for `SUPER` and `SHIELD` (50% cost reduction)
 - **Ability system**:
   - `R` — **Shield**: 10-second full damage immunity
   - `E` — **Super Mode**: boosted speed and damage for 10 seconds
@@ -133,9 +136,12 @@ Choose your character in the lobby before joining:
 
 | Character | Class Ability `Q` | Passive |
 |---|---|---|
-| ⚡ **Telepotu** | Teleport-swap with a random enemy (costs 50 HP, 30s cooldown) | — |
+| ⚡ **Telepotu** | Instantly swap positions with a random enemy anywhere on the map (60s cooldown) | — |
 | 👻 **Chumantr** | Go invisible for 10s — cannot shoot while cloaked (30s cooldown) | — |
-| 🔥 **Denja** | No active ability | Permanent 2× movement speed; health capped at 375 HP |
+| 🔥 **Denja** | Passive only | Permanent 2× movement speed; max health capped at 75% (375 HP) |
+| 💊 **Mednix** | Instantly restore a small random amount of HP (1–50) (20s cooldown) | — |
+| 🛡 **Tank** | Passive only | Double max HP (1000 HP) but permanently half movement speed |
+| ⚓ **Anchor** | Passive only | `SUPER` and `SHIELD` cost 50% less HP |
 
 ### Controls
 
