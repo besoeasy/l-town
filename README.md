@@ -65,8 +65,8 @@ There is nothing to install for players. Open the game URL, pick a character, en
 
 ```bash
 # Clone the repository
-git clone https://github.com/besoeasy/Open-Source-Multiplayer-Shooter.git
-cd Open-Source-Multiplayer-Shooter
+git clone https://github.com/besoeasy/l-town.git
+cd l-town
 
 # Install dependencies
 npm install
@@ -84,13 +84,13 @@ The easiest way to host a private game for everyone in your home — no internet
 **Step 1 — Pull the pre-built image (one time)**
 
 ```bash
-docker pull ghcr.io/besoeasy/open-source-multiplayer-shooter:latest
+docker pull ghcr.io/besoeasy/l-town:latest
 ```
 
 **Step 2 — Start the server**
 
 ```bash
-docker run -d -p 30300:30300 --name energy-arena ghcr.io/besoeasy/open-source-multiplayer-shooter:latest
+docker run -d -p 30300:30300 --name energy-arena ghcr.io/besoeasy/l-town:latest
 ```
 
 **Step 3 — Find your local IP**
