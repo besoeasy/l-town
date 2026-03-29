@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makePRNG } from './modules/utls.js';
 import { generateMap } from './modules/map.js';
+import { CFG } from './modules/cfg.js';
 
 // ─── AUDIO ───────────────────────────────────────────────────────────────────
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -121,7 +122,7 @@ let ws;
 
 let myId        = null;
 let mapData     = null;
-let cfg         = null;
+let cfg         = CFG;
 let gameState   = null;
 let matchEnded  = false;
 let latencyMs   = 0;
@@ -966,7 +967,7 @@ function renderLoop() {
     localPos.y += localVy * dt;
     // Land on top of boxes when falling
     if (localVy <= 0 && mapData) {
-      const pr = cfg.PLAYER_RADIUS ?? 0.45;
+      const pr = cfg?.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
       for (const box of mapData.boxes) {
         const bTop = box.y + box.h / 2;
         if (prevLocalY >= bTop - 0.05 && localPos.y <= bTop &&
@@ -1009,9 +1010,9 @@ function renderLoop() {
     const airMult   = inAir ? 1.2 : 1;
     const denjaMult = localCharacter === 'denja' ? 2   : 1;
     const tankMult  = localCharacter === 'tank'  ? 0.5 : 1;
-    const speed = (isCrouching ? (cfg.CROUCH_SPEED ?? 4)
-          : running      ? (cfg.RUN_SPEED   ?? 15)
-          : (cfg.PLAYER_SPEED ?? 9)) * superMult * airMult * denjaMult * tankMult;
+    const speed = (isCrouching ? (cfg?.CROUCH_SPEED ?? CFG.CROUCH_SPEED)
+          : running      ? (cfg?.RUN_SPEED   ?? CFG.RUN_SPEED)
+          : (cfg?.PLAYER_SPEED ?? CFG.PLAYER_SPEED)) * superMult * airMult * denjaMult * tankMult;
     if (len > 0) {
       localPos.x += (mx / len) * speed * dt;
       localPos.z += (mz / len) * speed * dt;
@@ -1019,7 +1020,7 @@ function renderLoop() {
 
     // Client-side horizontal collision (mirrors server resolveCollision)
     if (mapData) {
-      const pr = cfg.PLAYER_RADIUS ?? 0.45;
+      const pr = cfg?.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
       const bound = (mapData.floor?.w ?? 250) / 2 - 0.5;
       localPos.x = Math.max(-bound, Math.min(bound, localPos.x));
       localPos.z = Math.max(-bound, Math.min(bound, localPos.z));
@@ -1060,7 +1061,7 @@ function renderLoop() {
     }
 
     // Apply camera — smoothly lerp eye height for crouch
-    const targetEyeH = isCrouching ? (cfg.CROUCH_EYE_HEIGHT ?? 0.7) : (cfg.EYE_HEIGHT ?? 1.6);
+    const targetEyeH = isCrouching ? (cfg?.CROUCH_EYE_HEIGHT ?? CFG.CROUCH_EYE_HEIGHT) : (cfg?.EYE_HEIGHT ?? CFG.EYE_HEIGHT);
     localEyeH += (targetEyeH - localEyeH) * Math.min(1, dt * 12);
     camera.position.set(localPos.x, localPos.y + localEyeH, localPos.z);
     camera.rotation.order = 'YXZ';
@@ -1166,7 +1167,7 @@ function renderLoop() {
     const me      = gameState?.players.find(p => p.id === myId);
     const moving   = keys.w || keys.s || keys.a || keys.d;
     const isRun    = moving && !isCrouching;
-    const shotCost = cfg?.SHOT_COST_SINGLE ?? 2;
+    const shotCost = cfg?.SHOT_COST_SINGLE ?? CFG.SHOT_COST_SINGLE;
     const canFire  = me ? me.health > shotCost : true;
     const shielding = !!(me?.shieldActive);
     updateViewmodel(dt, moving && isLocked, isRun && isLocked, canFire, shielding);
@@ -1200,7 +1201,7 @@ function updateHUD() {
   if (!me) return;
 
   // HP bar
-  const pct = Math.max(0, me.health / (cfg?.MAX_HEALTH ?? 500) * 100);
+  const pct = Math.max(0, me.health / (cfg?.MAX_HEALTH ?? CFG.MAX_HEALTH) * 100);
   document.getElementById('hpFill').style.width = `${pct}%`;
   const valEl = document.getElementById('healthVal');
   valEl.textContent = Math.ceil(me.health);
@@ -1211,7 +1212,7 @@ function updateHUD() {
   // flash/sound now driven by server 'hit' message — not HP polling
   if (!me.alive && prevHealth > 0) sndDie();
   // Recharge sound: play while crouching and health is actively regenerating
-  const isRecharging = me.alive && me.crouching && me.health < (cfg?.MAX_HEALTH ?? 500);
+  const isRecharging = me.alive && me.crouching && me.health < (cfg?.MAX_HEALTH ?? CFG.MAX_HEALTH);
   if (isRecharging) startRecharge(); else stopRecharge();
   prevHealth = me.alive ? me.health : 0;
   prevSuperActive = me.superActive;
@@ -1238,7 +1239,7 @@ function updateHUD() {
 
   // Player count — use server-provided count (spatial snapshot omits distant players)
   const total = gameState.playerCount ?? gameState.players.length;
-  const maxP  = cfg?.MAX_PLAYERS ?? 300;
+  const maxP  = cfg?.MAX_PLAYERS ?? CFG.MAX_PLAYERS;
   document.getElementById('playerCount').textContent = `${total}/${maxP} players`;
 
   // Alive count
@@ -1537,7 +1538,7 @@ function _onWSMessage(e) {
   if (msg.type === 'welcome') {
     myId    = msg.playerId;
     mapData = generateMap(msg.seed);
-    cfg     = msg.cfg;
+    cfg     = { ...CFG, ...msg.cfg };
     buildMap(mapData);
     showGame();
     return;
