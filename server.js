@@ -1,19 +1,14 @@
-'use strict';
-
-const http = require('http');
-const https = require('https');
-const fs   = require('fs');
-const path = require('path');
-const { WebSocketServer } = require('ws');
-
 // ─── PROCEDURAL MAP GENERATION ───────────────────────────────────────────────
-function makePRNG(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
-    return s / 0x100000000;
-  };
-}
+import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
+import { makePRNG } from './public/modules/utls.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function generateMap(seed) {
   const rng  = makePRNG(seed);

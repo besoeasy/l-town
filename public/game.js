@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makePRNG } from './modules/utls.js';
 
 // ─── AUDIO ───────────────────────────────────────────────────────────────────
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -288,13 +289,7 @@ function initScene() {
 }
 
 // ─── PROCEDURAL MAP GENERATION (mirrors server.js — seed keeps them in sync) ─
-function makePRNG(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
-    return s / 0x100000000;
-  };
-}
+// `makePRNG` is provided by `./modules/utls.js` and imported at top
 
 function generateMap(seed) {
   const rng  = makePRNG(seed);
