@@ -738,24 +738,28 @@ function removePlayerMesh(id) {
 
 function updateNameTag(group, name, isTarget = false) {
   const { nameCvs, nameCtx, nameTex } = group.userData;
+  if (group.userData.nameText === name && group.userData.nameTarget === isTarget) return;
+  group.userData.nameText = name;
+  group.userData.nameTarget = isTarget;
+
   nameCtx.clearRect(0, 0, 256, 48);
-  nameCtx.font         = 'bold 24px sans-serif';
-  nameCtx.textAlign    = 'center';
+  nameCtx.font      = 'bold 24px sans-serif';
+  nameCtx.textAlign = 'center';
   if (isTarget) {
-    nameCtx.fillStyle  = 'rgba(200,40,10,0.82)';
+    nameCtx.fillStyle   = 'rgba(200,40,10,0.82)';
     nameCtx.fillRect(10, 4, 236, 36);
     nameCtx.strokeStyle = 'rgba(255,120,0,0.9)';
     nameCtx.lineWidth   = 2;
     nameCtx.strokeRect(10, 4, 236, 36);
-    nameCtx.fillStyle  = '#ffe066';
-    nameCtx.fillText('\uD83C\uDFAF ' + name.slice(0, 12), 128, 30);
+    nameCtx.fillStyle   = '#ffe066';
+    nameCtx.fillText('🎯 ' + name.slice(0, 12), 128, 30);
   } else {
-    nameCtx.fillStyle  = 'rgba(0,0,0,0.5)';
+    nameCtx.fillStyle = 'rgba(0,0,0,0.5)';
     nameCtx.fillRect(20, 6, 216, 32);
-    nameCtx.fillStyle  = '#edf7fb';
+    nameCtx.fillStyle = '#edf7fb';
     nameCtx.fillText(name.slice(0, 14), 128, 30);
   }
-  nameTex.needsUpdate  = true;
+  nameTex.needsUpdate = true;
 }
 
 // ─── RENDER LOOP ─────────────────────────────────────────────────────────────
@@ -777,30 +781,33 @@ function renderLoop() {
     _mouseAccY = 0;
   }
 
-  if (isLocked && gameState && myId && cfg) {
-    const moving   = keys.w || keys.s || keys.a || keys.d;
-    const running  = moving && !isCrouching;
+  const players = gameState?.players ?? [];
+  const me = players.find(p => p.id === myId);
+
+  if (isLocked && me && cfg) {
+    const moving  = keys.w || keys.s || keys.a || keys.d;
+    const running = moving && !isCrouching;
 
     // Footstep audio
-    if (moving && isLocked) startFootsteps(running);
+    if (moving) startFootsteps(running);
     else stopFootsteps();
 
-    // Auto-crouch after 10 s of no movement
+    // Auto-crouch after idle
     if (moving) {
-      lastMoveTime = performance.now();
+      lastMoveTime = now;
       if (isCrouching) setCrouch(false);
-    } else if (!isCrouching && (performance.now() - lastMoveTime) >= AUTO_CROUCH_MS) {
+    } else if (!isCrouching && (now - lastMoveTime) >= AUTO_CROUCH_MS) {
       setCrouch(true);
     }
 
     // Client-side jump physics
     localGrounded = false; // reset each frame; set true by ground/box landing
     const prevLocalY = localPos.y;
-    localVy    -= 26 * dt;
+    localVy -= 26 * dt;
     localPos.y += localVy * dt;
     // Land on top of boxes when falling
     if (localVy <= 0 && mapData) {
-      const pr = cfg?.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
+      const pr = cfg.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
       for (const box of mapData.boxes) {
         const bTop = box.y + box.h / 2;
         if (prevLocalY >= bTop - 0.05 && localPos.y <= bTop &&
@@ -817,15 +824,15 @@ function renderLoop() {
 
     // Jump charge bar while holding space
     if (spaceDownTime > 0 && localGrounded) {
-      const charge = Math.min(1, (performance.now() - spaceDownTime) / SUPER_JUMP_CHARGE_MS);
-      const bar = document.getElementById('jumpChargeFill');
+      const charge = Math.min(1, (now - spaceDownTime) / SUPER_JUMP_CHARGE_MS);
+      const bar = HUD.jumpChargeFill;
       if (bar) {
-        bar.style.width   = (charge * 100) + '%';
+        bar.style.width = `${charge * 100}%`;
         bar.style.background = charge >= 1 ? '#ffe040' : '#74f0c6';
         bar.parentElement.style.opacity = '1';
       }
     } else {
-      const bar = document.getElementById('jumpChargeFill');
+      const bar = HUD.jumpChargeFill;
       if (bar) bar.parentElement.style.opacity = '0';
     }
 
@@ -835,10 +842,9 @@ function renderLoop() {
     if (keys.s) { mx += Math.sin(localYaw); mz += Math.cos(localYaw); }
     if (keys.a) { mx += Math.sin(localYaw - Math.PI / 2); mz += Math.cos(localYaw - Math.PI / 2); }
     if (keys.d) { mx += Math.sin(localYaw + Math.PI / 2); mz += Math.cos(localYaw + Math.PI / 2); }
-    const len   = Math.sqrt(mx * mx + mz * mz);
-    const myState  = gameState?.players?.find(p => p.id === myId);
-    const isSuperOn = myState?.superActive ?? false;
-    const inAir     = !localGrounded;
+    const len = Math.sqrt(mx * mx + mz * mz);
+    const isSuperOn = me?.superActive ?? false;
+    const inAir = !localGrounded;
     const superMult = isSuperOn ? 1.5 : 1;
     const airMult   = inAir ? 1.2 : 1;
     const denjaMult = localCharacter === 'denja' ? 2   : 1;
@@ -1004,13 +1010,12 @@ function renderLoop() {
   updateBullets(dt);
 
   // Viewmodel on top
-  if (vmBuilt && myId) {
-    const me      = gameState?.players.find(p => p.id === myId);
+  if (vmBuilt && me) {
     const moving   = keys.w || keys.s || keys.a || keys.d;
     const isRun    = moving && !isCrouching;
     const shotCost = cfg?.SHOT_COST_SINGLE ?? CFG.SHOT_COST_SINGLE;
-    const canFire  = me ? me.health > shotCost : true;
-    const shielding = !!(me?.shieldActive);
+    const canFire  = me.health > shotCost;
+    const shielding = !!me.shieldActive;
     updateViewmodel(dt, moving && isLocked, isRun && isLocked, canFire, shielding);
   }
 
@@ -1022,6 +1027,56 @@ function renderLoop() {
 }
 
 // ─── HUD UPDATE ───────────────────────────────────────────────────────────────
+const HUD = {
+  hpFill: null, healthVal: null, respawnOverlay: null, respawnCount: null,
+  myScore: null, matchTimer: null, playerCount: null, aliveCount: null,
+  ammoLine: null, cloakOverlay: null, targetBadge: null, targetArrow: null, targetDist: null, jumpChargeFill: null,
+  superHUD: null, superLabel: null, superBarFill: null, superOverlay: null,
+  shieldHUD: null, shieldLabel: null, shieldBarFill: null, shieldOverlay: null,
+  classIcon: null, className: null, classCD: null, classFill: null,
+  crouchOverlay: null, crouchHUD: null, killBoostOverlay: null, killBoostHUD: null,
+  teleportFlash: null, hitFlash: null, hpBar: null, killBoostMult: null, killBoostTimer: null,
+};
+
+function ensureHUDElements() {
+  if (HUD.hpFill) return;
+  HUD.hpFill = document.getElementById('hpFill');
+  HUD.healthVal = document.getElementById('healthVal');
+  HUD.respawnOverlay = document.getElementById('respawnOverlay');
+  HUD.respawnCount = document.getElementById('respawnCount');
+  HUD.myScore = document.getElementById('myScore');
+  HUD.matchTimer = document.getElementById('matchTimer');
+  HUD.playerCount = document.getElementById('playerCount');
+  HUD.aliveCount = document.getElementById('aliveCount');
+  HUD.ammoLine = document.getElementById('ammoLine');
+  HUD.cloakOverlay = document.getElementById('cloakOverlay');
+  HUD.targetBadge = document.getElementById('targetBadge');
+  HUD.jumpChargeFill = document.getElementById('jumpChargeFill');
+  HUD.targetArrow = document.getElementById('targetArrow');
+  HUD.targetDist = document.getElementById('targetDist');
+  HUD.superHUD = document.getElementById('superHUD');
+  HUD.superLabel = document.getElementById('superLabel');
+  HUD.superBarFill = document.getElementById('superBarFill');
+  HUD.superOverlay = document.getElementById('superOverlay');
+  HUD.shieldHUD = document.getElementById('shieldHUD');
+  HUD.shieldLabel = document.getElementById('shieldLabel');
+  HUD.shieldBarFill = document.getElementById('shieldBarFill');
+  HUD.shieldOverlay = document.getElementById('shieldOverlay');
+  HUD.classIcon = document.getElementById('classAbilityIcon');
+  HUD.className = document.getElementById('classAbilityName');
+  HUD.classCD = document.getElementById('classAbilityCD');
+  HUD.classFill = document.getElementById('classAbilityCDFill');
+  HUD.crouchOverlay = document.getElementById('crouchOverlay');
+  HUD.crouchHUD = document.getElementById('crouchHUD');
+  HUD.killBoostOverlay = document.getElementById('killBoostOverlay');
+  HUD.killBoostHUD = document.getElementById('killBoostHUD');
+  HUD.teleportFlash = document.getElementById('teleportFlash');
+  HUD.hitFlash = document.getElementById('hitFlash');
+  HUD.hpBar = document.getElementById('hpBar');
+  HUD.killBoostMult = document.getElementById('killBoostMult');
+  HUD.killBoostTimer = document.getElementById('killBoostTimer');
+}
+
 let prevHealth = 200;
 let prevSuperActive = false;
 let prevSuperReady  = false;
@@ -1038,18 +1093,20 @@ function showAbilityToast(msg) {
 }
 function updateHUD() {
   if (!gameState || !myId) return;
+  ensureHUDElements();
+
   const me = gameState.players.find(p => p.id === myId);
   if (!me) return;
 
   // HP bar
   const pct = Math.max(0, me.health / (cfg?.MAX_HEALTH ?? CFG.MAX_HEALTH) * 100);
-  document.getElementById('hpFill').style.width = `${pct}%`;
-  const valEl = document.getElementById('healthVal');
-  valEl.textContent = Math.ceil(me.health);
-  valEl.className   = me.health < 60 ? 'low' : '';
+  if (HUD.hpFill) HUD.hpFill.style.width = `${pct}%`;
+  if (HUD.healthVal) {
+    HUD.healthVal.textContent = Math.ceil(me.health);
+    HUD.healthVal.className = me.health < 60 ? 'low' : '';
+  }
 
   // Hit flash + sound when HP drops (ignore super activation cost)
-  const superJustActivated = me.superActive && !prevSuperActive;
   // flash/sound now driven by server 'hit' message — not HP polling
   if (!me.alive && prevHealth > 0) sndDie();
   // Recharge sound: play while crouching and health is actively regenerating
@@ -1059,40 +1116,41 @@ function updateHUD() {
   prevSuperActive = me.superActive;
 
   // Respawn countdown overlay
-  const respawnOverlay = document.getElementById('respawnOverlay');
-  const respawnCount   = document.getElementById('respawnCount');
-  if (!me.alive && me.respawnAt > 0) {
-    const secsLeft = Math.ceil((me.respawnAt - Date.now()) / 1000);
-    respawnCount.textContent = Math.max(0, secsLeft);
-    respawnOverlay.classList.add('show');
-  } else {
-    respawnOverlay.classList.remove('show');
+  if (HUD.respawnOverlay && HUD.respawnCount) {
+    if (!me.alive && me.respawnAt > 0) {
+      const secsLeft = Math.ceil((me.respawnAt - Date.now()) / 1000);
+      HUD.respawnCount.textContent = Math.max(0, secsLeft);
+      HUD.respawnOverlay.classList.add('show');
+    } else {
+      HUD.respawnOverlay.classList.remove('show');
+    }
   }
 
   // Score
-  document.getElementById('myScore').textContent = `Score: ${me.score}`;
+  if (HUD.myScore) HUD.myScore.textContent = `Score: ${me.score}`;
 
   // Timer
   const t   = Math.max(0, gameState.matchTime);
   const min = Math.floor(t / 60);
   const sec = Math.floor(t % 60);
-  document.getElementById('matchTimer').textContent = `${min}:${String(sec).padStart(2, '0')}`;
+  if (HUD.matchTimer) HUD.matchTimer.textContent = `${min}:${String(sec).padStart(2, '0')}`;
 
   // Player count — use server-provided count (spatial snapshot omits distant players)
   const total = gameState.playerCount ?? gameState.players.length;
   const maxP  = cfg?.MAX_PLAYERS ?? CFG.MAX_PLAYERS;
-  document.getElementById('playerCount').textContent = `${total}/${maxP} players`;
+  if (HUD.playerCount) HUD.playerCount.textContent = `${total}/${maxP} players`;
 
   // Alive count
   const alive = gameState.aliveCount ?? gameState.players.filter(p => p.alive).length;
-  document.getElementById('aliveCount').textContent = `${alive} alive`;
+  if (HUD.aliveCount) HUD.aliveCount.textContent = `${alive} alive`;
 
   // Energy (health = ammo)
-  const ammoEl  = document.getElementById('ammoLine');
   const shotCost = cfg?.SHOT_COST_SINGLE ?? 2;
   const canFire  = me.health > shotCost;
-  ammoEl.className   = canFire ? '' : 'low';
-  ammoEl.textContent = canFire ? `−2 energy / shot` : '⚡  LOW ENERGY';
+  if (HUD.ammoLine) {
+    HUD.ammoLine.className = canFire ? '' : 'low';
+    HUD.ammoLine.textContent = canFire ? '−2 energy / shot' : '⚡  LOW ENERGY';
+  }
 
   // Charge pips
   updateChargeHUD();
@@ -1110,72 +1168,66 @@ function updateHUD() {
   // Target arrow removed — element no longer in DOM, skip
 
   // Crouch indicator
-  const crouchOverlay = document.getElementById('crouchOverlay');
-  const crouchHUD     = document.getElementById('crouchHUD');
-  if (me.crouching) {
-    crouchHUD.className = 'visible';
-    crouchOverlay.classList.add('active');
-  } else {
-    crouchHUD.className = '';
-    crouchOverlay.classList.remove('active');
+  if (HUD.crouchHUD && HUD.crouchOverlay) {
+    if (me.crouching) {
+      HUD.crouchHUD.className = 'visible';
+      HUD.crouchOverlay.classList.add('active');
+    } else {
+      HUD.crouchHUD.className = '';
+      HUD.crouchOverlay.classList.remove('active');
+    }
   }
 
   // Kill boost HUD — now just a brief flash on kill (handled in ws message handler)
   // No persistent banner needed
 
   // High-value target HUD badge + directional arrow
-  const targetBadge = document.getElementById('targetBadge');
-  const targetArrow = document.getElementById('targetArrow');
   const hvt = gameState.highValueTargetId
     ? gameState.players.find(p => p.id === gameState.highValueTargetId)
     : null;
-  if (hvt && hvt.id !== myId) {
-    const dx   = hvt.x - localPos.x;
-    const dz   = hvt.z - localPos.z;
-    const dist = Math.round(Math.sqrt(dx * dx + dz * dz));
-    targetBadge.textContent = `🎯 TARGET  ${hvt.name.slice(0, 14)}  ·  ${dist}m`;
-    targetBadge.classList.add('active');
-    targetBadge.classList.remove('self');
-    // Directional arrow — project target world pos to screen
-    const hvtVec = new THREE.Vector3(hvt.x, hvt.y + 1.6, hvt.z);
-    hvtVec.project(camera);
-    const onScreen = hvtVec.z < 1 && Math.abs(hvtVec.x) < 1 && Math.abs(hvtVec.y) < 1;
-    if (!onScreen) {
-      // Place distance pill on the screen edge in the target's direction
-      const ax = hvtVec.x, ay = -hvtVec.y;
-      const angle = Math.atan2(ay, ax); // radians from +X axis
-      const margin = 40; // px from screen edge
-      const hw = window.innerWidth  / 2;
-      const hh = window.innerHeight / 2;
-      // Find intersection with screen rectangle at this angle
-      const cosA = Math.cos(angle), sinA = Math.sin(angle);
-      const tx = cosA === 0 ? Infinity : (cosA > 0 ? hw - margin : -hw + margin) / cosA;
-      const ty = sinA === 0 ? Infinity : (sinA > 0 ? hh - margin : -hh + margin) / sinA;
-      const t  = Math.min(Math.abs(tx), Math.abs(ty));
-      const ex = hw + cosA * t;
-      const ey = hh + sinA * t;
-      targetArrow.style.left = `${ex}px`;
-      targetArrow.style.top  = `${ey}px`;
-      targetArrow.style.transform = 'translate(-50%, -50%)';
-      document.getElementById('targetDist').textContent = `🎯 ${dist}m`;
-      targetArrow.classList.add('active');
+  if (HUD.targetBadge && HUD.targetArrow && HUD.targetDist) {
+    if (hvt && hvt.id !== myId) {
+      const dx   = hvt.x - localPos.x;
+      const dz   = hvt.z - localPos.z;
+      const dist = Math.round(Math.sqrt(dx * dx + dz * dz));
+      HUD.targetBadge.textContent = `🎯 TARGET  ${hvt.name.slice(0, 14)}  ·  ${dist}m`;
+      HUD.targetBadge.classList.add('active');
+      HUD.targetBadge.classList.remove('self');
+      // Directional arrow — project target world pos to screen
+      const hvtVec = new THREE.Vector3(hvt.x, hvt.y + 1.6, hvt.z);
+      hvtVec.project(camera);
+      const onScreen = hvtVec.z < 1 && Math.abs(hvtVec.x) < 1 && Math.abs(hvtVec.y) < 1;
+      if (!onScreen) {
+        const ax = hvtVec.x, ay = -hvtVec.y;
+        const angle = Math.atan2(ay, ax);
+        const margin = 40;
+        const hw = window.innerWidth / 2;
+        const hh = window.innerHeight / 2;
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        const tx = cosA === 0 ? Infinity : (cosA > 0 ? hw - margin : -hw + margin) / cosA;
+        const ty = sinA === 0 ? Infinity : (sinA > 0 ? hh - margin : -hh + margin) / sinA;
+        const t  = Math.min(Math.abs(tx), Math.abs(ty));
+        const ex = hw + cosA * t;
+        const ey = hh + sinA * t;
+        HUD.targetArrow.style.left = `${ex}px`;
+        HUD.targetArrow.style.top  = `${ey}px`;
+        HUD.targetArrow.style.transform = 'translate(-50%, -50%)';
+        HUD.targetDist.textContent = `🎯 ${dist}m`;
+        HUD.targetArrow.classList.add('active');
+      } else {
+        HUD.targetArrow.classList.remove('active');
+      }
+    } else if (hvt && hvt.id === myId) {
+      HUD.targetBadge.textContent = '🎯 YOU ARE THE TARGET';
+      HUD.targetBadge.classList.add('active', 'self');
+      HUD.targetArrow.classList.remove('active');
     } else {
-      targetArrow.classList.remove('active');
+      HUD.targetBadge.className = 'target-badge';
+      HUD.targetArrow.classList.remove('active');
     }
-  } else if (hvt && hvt.id === myId) {
-    targetBadge.textContent = '🎯 YOU ARE THE TARGET';
-    targetBadge.classList.add('active', 'self');
-    targetArrow.classList.remove('active');
-  } else {
-    targetBadge.className = 'target-badge';
-    targetArrow.classList.remove('active');
   }
 
   // Super mode HUD
-  const superHUD     = document.getElementById('superHUD');
-  const superLabel   = document.getElementById('superLabel');
-  const superBarFill = document.getElementById('superBarFill');
-  const superOverlay = document.getElementById('superOverlay');
   const superDuration = cfg?.SUPER_DURATION ?? 10000;
   const superCost     = cfg?.SUPER_COST ?? 50;
 
@@ -1183,28 +1235,26 @@ function updateHUD() {
   if (!prevSuperReady && superReady) showAbilityToast('⚡  SUPER READY  [E]');
   prevSuperReady = superReady;
 
-  if (me.superActive) {
-    const left    = Math.max(0, me.superEnd - Date.now());
-    const pctLeft = (left / superDuration) * 100;
-    superHUD.className      = 'visible super-active';
-    superLabel.textContent  = `⚡ SUPER  ${(left / 1000).toFixed(1)}s`;
-    superBarFill.style.width = `${pctLeft}%`;
-    superOverlay.classList.add('active');
-  } else if (superReady) {
-    superHUD.className      = 'visible super-ready';
-    superLabel.textContent  = '[E]  SUPER READY';
-    superBarFill.style.width = '100%';
-    superOverlay.classList.remove('active');
-  } else {
-    superHUD.className = '';
-    superOverlay.classList.remove('active');
+  if (HUD.superHUD && HUD.superLabel && HUD.superBarFill && HUD.superOverlay) {
+    if (me.superActive) {
+      const left    = Math.max(0, me.superEnd - Date.now());
+      const pctLeft = (left / superDuration) * 100;
+      HUD.superHUD.className = 'visible super-active';
+      HUD.superLabel.textContent = `⚡ SUPER  ${(left / 1000).toFixed(1)}s`;
+      HUD.superBarFill.style.width = `${pctLeft}%`;
+      HUD.superOverlay.classList.add('active');
+    } else if (superReady) {
+      HUD.superHUD.className = 'visible super-ready';
+      HUD.superLabel.textContent = '[E]  SUPER READY';
+      HUD.superBarFill.style.width = '100%';
+      HUD.superOverlay.classList.remove('active');
+    } else {
+      HUD.superHUD.className = '';
+      HUD.superOverlay.classList.remove('active');
+    }
   }
 
   // Shield HUD
-  const shieldHUD     = document.getElementById('shieldHUD');
-  const shieldLabel   = document.getElementById('shieldLabel');
-  const shieldBarFill = document.getElementById('shieldBarFill');
-  const shieldOverlay = document.getElementById('shieldOverlay');
   const shieldDuration = cfg?.SHIELD_DURATION ?? 10000;
   const shieldCost     = cfg?.SHIELD_COST ?? 80;
 
@@ -1212,60 +1262,59 @@ function updateHUD() {
   if (!prevShieldReady && shieldReady) showAbilityToast('🛡  SHIELD READY  [R]');
   prevShieldReady = shieldReady;
 
-  if (me.shieldActive) {
-    const left    = Math.max(0, me.shieldEnd - Date.now());
-    const pctLeft = (left / shieldDuration) * 100;
-    shieldHUD.className      = 'visible';
-    shieldLabel.textContent  = `🛡 SHIELD  ${(left / 1000).toFixed(1)}s`;
-    shieldBarFill.style.width = `${pctLeft}%`;
-    shieldOverlay.classList.add('active');
-  } else if (shieldReady) {
-    shieldHUD.className      = 'visible';
-    shieldLabel.textContent  = '[R]  SHIELD READY';
-    shieldBarFill.style.width = '100%';
-    shieldOverlay.classList.remove('active');
-    shieldLabel.style.fontSize = '13px';
-    shieldLabel.style.opacity  = '0.6';
-    shieldLabel.style.textShadow = 'none';
-  } else {
-    shieldHUD.className = '';
-    shieldOverlay.classList.remove('active');
-  }
-  if (me.shieldActive) {
-    shieldLabel.style.fontSize   = '15px';
-    shieldLabel.style.opacity    = '';
-    shieldLabel.style.textShadow = '';
+  if (HUD.shieldHUD && HUD.shieldLabel && HUD.shieldBarFill && HUD.shieldOverlay) {
+    if (me.shieldActive) {
+      const left = Math.max(0, me.shieldEnd - Date.now());
+      const pctLeft = (left / shieldDuration) * 100;
+      HUD.shieldHUD.className = 'visible';
+      HUD.shieldLabel.textContent = `🛡 SHIELD  ${(left / 1000).toFixed(1)}s`;
+      HUD.shieldBarFill.style.width = `${pctLeft}%`;
+      HUD.shieldOverlay.classList.add('active');
+      HUD.shieldLabel.style.fontSize = '15px';
+      HUD.shieldLabel.style.opacity = '';
+      HUD.shieldLabel.style.textShadow = '';
+    } else if (shieldReady) {
+      HUD.shieldHUD.className = 'visible';
+      HUD.shieldLabel.textContent = '[R]  SHIELD READY';
+      HUD.shieldBarFill.style.width = '100%';
+      HUD.shieldOverlay.classList.remove('active');
+      HUD.shieldLabel.style.fontSize = '13px';
+      HUD.shieldLabel.style.opacity = '0.6';
+      HUD.shieldLabel.style.textShadow = 'none';
+    } else {
+      HUD.shieldHUD.className = '';
+      HUD.shieldOverlay.classList.remove('active');
+    }
   }
 
   // Cloak overlay (chumantr)
   document.getElementById('cloakOverlay').classList.toggle('active', !!me.invisible);
 
   // Class ability HUD
-  const classIcon  = document.getElementById('classAbilityIcon');
-  const classNameEl = document.getElementById('classAbilityName');
-  const classCDEl  = document.getElementById('classAbilityCD');
-  const classFill  = document.getElementById('classAbilityCDFill');
   const char = me.character ?? localCharacter;
   const CHAR_LABEL = { telepotu: '⚡ WARP', chumantr: '👻 CLOAK', denja: '🔥 2× SPEED', mednix: '💊 SURGE', tank: '🛡 PASSIVE', anchor: '⚓ IMMUNITY' };
-  const CHAR_CD    = { telepotu: 60000, chumantr: 30000, denja: -1, mednix: 20000, tank: -1, anchor: -1 };
+  const CHAR_CD = { telepotu: 60000, chumantr: 30000, denja: -1, mednix: 20000, tank: -1, anchor: -1 };
   const cd = CHAR_CD[char] ?? 30000;
-  classIcon.textContent = { denja:'🔥', chumantr:'👻', mednix:'💊', tank:'🛡', anchor:'⚓' }[char] ?? '⚡';
-  classNameEl.textContent = `[Q] ${CHAR_LABEL[char] ?? char.toUpperCase()}`;
-  if (cd < 0) {
-    classCDEl.textContent    = 'PASSIVE';
-    classFill.style.width    = '100%';
-    classFill.style.background = '#ff6644';
-    prevClassReady = true;
-  } else {
-    const elapsed = Date.now() - (me.lastAbilityAt ?? 0);
-    const ready   = elapsed >= cd;
-    const pct     = Math.min(100, (elapsed / cd) * 100);
-    if (!prevClassReady && ready) showAbilityToast(`${classIcon.textContent}  ABILITY READY  [Q]`);
-    prevClassReady = ready;
-    classCDEl.textContent    = ready ? 'READY' : `${Math.ceil((cd - elapsed) / 1000)}s`;
-    classCDEl.style.color    = ready ? 'var(--accent)' : 'var(--muted)';
-    classFill.style.width    = `${pct}%`;
-    classFill.style.background = ready ? 'var(--accent)' : '#4488aa';
+
+  if (HUD.classIcon && HUD.className && HUD.classCD && HUD.classFill) {
+    HUD.classIcon.textContent = { denja:'🔥', chumantr:'👻', mednix:'💊', tank:'🛡', anchor:'⚓' }[char] ?? '⚡';
+    HUD.className.textContent = `[Q] ${CHAR_LABEL[char] ?? char.toUpperCase()}`;
+    if (cd < 0) {
+      HUD.classCD.textContent = 'PASSIVE';
+      HUD.classFill.style.width = '100%';
+      HUD.classFill.style.background = '#ff6644';
+      prevClassReady = true;
+    } else {
+      const elapsed = Date.now() - (me.lastAbilityAt ?? 0);
+      const ready = elapsed >= cd;
+      const pct = Math.min(100, (elapsed / cd) * 100);
+      if (!prevClassReady && ready) showAbilityToast(`${HUD.classIcon.textContent}  ABILITY READY  [Q]`);
+      prevClassReady = ready;
+      HUD.classCD.textContent = ready ? 'READY' : `${Math.ceil((cd - elapsed) / 1000)}s`;
+      HUD.classCD.style.color = ready ? 'var(--accent)' : 'var(--muted)';
+      HUD.classFill.style.width = `${pct}%`;
+      HUD.classFill.style.background = ready ? 'var(--accent)' : '#4488aa';
+    }
   }
 }
 
