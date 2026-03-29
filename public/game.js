@@ -1878,7 +1878,6 @@ document.addEventListener('keydown', e => {
   // 'r' does nothing — energy weapon has no reload
   if (k === 'e' && isLocked) { resumeAudio(); sndSuper(); ws.send(JSON.stringify({ type: 'super' })); }
   if (k === 'r' && isLocked) { resumeAudio(); ws.send(JSON.stringify({ type: 'shield' })); }
-  if (k === 't' && isLocked) { resumeAudio(); ws.send(JSON.stringify({ type: 'teleport' })); }
   if (k === 'q' && isLocked) {
     resumeAudio();
     ws.send(JSON.stringify({ type: 'classAbility' }));

@@ -356,7 +356,6 @@ const CFG = {
   SUPER_MULT:         3,
   SHIELD_COST:        80,    // HP cost to activate shield
   SHIELD_DURATION: 10000,    // ms of full damage immunity
-  TELEPORT_COST:      50,    // HP cost to random-swap with another player
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -981,30 +980,7 @@ wss.on('connection', ws => {
       return;
     }
 
-    // ── TELEPORT SWAP ─────────────────────────────────────────────────────
-    if (msg.type === 'teleport') {
-      const _now = Date.now();
-      if (!player.alive || player.health < CFG.TELEPORT_COST + 1) return;
-      if (_now - player.lastTeleportAt < 30000) return; // 30-second cooldown
-      player.lastTeleportAt = _now;
-      const candidates = [...players.values()].filter(p => p.alive && p.id !== player.id);
-      if (candidates.length === 0) return;
-      const target = candidates[Math.floor(Math.random() * candidates.length)];
-      // Swap positions
-      const tmp = { x: player.x, y: player.y, z: player.z };
-      player.x = target.x; player.y = target.y; player.z = target.z;
-      target.x = tmp.x;    target.y = tmp.y;    target.z = tmp.z;
-      player.health -= CFG.TELEPORT_COST;
-      player.lastHitTime = Date.now();
-      // Target gains half the teleport cost as HP bonus
-      target.health = Math.min(CFG.MAX_HEALTH, target.health + CFG.TELEPORT_COST / 2);
-      // Notify both players of their new positions
-      if (player.ws?.readyState === 1)
-        player.ws.send(JSON.stringify({ type: 'teleported', x: player.x, y: player.y, z: player.z, targetName: target.name }));
-      if (target.ws?.readyState === 1)
-        target.ws.send(JSON.stringify({ type: 'teleported', x: target.x, y: target.y, z: target.z, targetName: player.name }));
-      return;
-    }
+    // Teleport swap removed — use `classAbility` (Q key) which enforces Telepotu-only behavior.
 
     // ── PING ──────────────────────────────────────────────────────────────
     if (msg.type === 'ping') {
