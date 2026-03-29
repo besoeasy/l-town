@@ -1,6 +1,7 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 const fs   = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
@@ -713,7 +714,7 @@ const MIME = {
   '.wav':  'audio/wav',
 };
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   let url = req.url.split('?')[0];
 
   // Serve Three.js from node_modules
@@ -725,7 +726,30 @@ const server = http.createServer((req, res) => {
 
   if (url === '/' || url === '') url = '/index.html';
   serveFile(res, path.join(__dirname, 'public', url));
-});
+}
+
+const USE_TLS = (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH) || (process.env.SSL_KEY && process.env.SSL_CERT);
+let server;
+
+if (USE_TLS) {
+  let tlsOptions = {};
+  try {
+    if (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH) {
+      tlsOptions.key = fs.readFileSync(process.env.SSL_KEY_PATH);
+      tlsOptions.cert = fs.readFileSync(process.env.SSL_CERT_PATH);
+    } else {
+      tlsOptions.key = process.env.SSL_KEY.replace(/\\n/g, '\n');
+      tlsOptions.cert = process.env.SSL_CERT.replace(/\\n/g, '\n');
+    }
+    server = https.createServer(tlsOptions, handleRequest);
+  } catch (e) {
+    console.error('Failed to load TLS cert/key:', e);
+    console.error('Falling back to HTTP.');
+    server = http.createServer(handleRequest);
+  }
+} else {
+  server = http.createServer(handleRequest);
+}
 
 function serveFile(res, filePath) {
   // Prevent path traversal
@@ -1011,7 +1035,7 @@ wss.on('connection', ws => {
   ws.on('error', () => { /* swallow */ });
 });
 
-const PORT = process.env.PORT ?? 30300;
+const PORT = process.env.PORT ?? (USE_TLS ? 443 : 30300);
 server.listen(PORT, '0.0.0.0', () =>
-  console.log(`L-Town running → http://0.0.0.0:${PORT}`)
+  console.log(`L-Town running → ${USE_TLS ? 'https' : 'http'}://0.0.0.0:${PORT}`)
 );

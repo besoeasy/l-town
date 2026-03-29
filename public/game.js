@@ -126,7 +126,8 @@ let latencyMs   = 0;
 let localCharacter = 'telepotu'; // set from character card selection
 
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}`);
+  const proto = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
   ws.addEventListener('open', () => {
     setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
