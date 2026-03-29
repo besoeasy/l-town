@@ -1239,8 +1239,8 @@ function renderLoop() {
     const denjaMult = localCharacter === 'denja' ? 2   : 1;
     const tankMult  = localCharacter === 'tank'  ? 0.5 : 1;
     const speed = (isCrouching ? (cfg.CROUCH_SPEED ?? 4)
-                : running      ? (cfg.RUN_SPEED   ?? 14)
-                : cfg.PLAYER_SPEED) * superMult * airMult * denjaMult * tankMult;
+          : running      ? (cfg.RUN_SPEED   ?? 15)
+          : (cfg.PLAYER_SPEED ?? 9)) * superMult * airMult * denjaMult * tankMult;
     if (len > 0) {
       localPos.x += (mx / len) * speed * dt;
       localPos.z += (mz / len) * speed * dt;
