@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { makePRNG } from './utls.js';
 
 export function generateMap(seed) {
@@ -222,4 +223,174 @@ export function generateMap(seed) {
   ]) spawns.push({ x, y: 1.6, z });
 
   return { floor: { w: SIZE, d: SIZE }, boxes, spawns, pois: [] };
+}
+
+// ─── MAP BUILD (moved from public/game.js) ───────────────────────────────────
+
+export function buildMap(scene, map) {
+  const SIZE = map.floor.w;
+
+  // Seeded RNG from map signature so all clients place decoratives identically
+  let _s = (map.boxes.length * 31 + map.spawns.length * 97 + 12345) >>> 0;
+  function rng() {
+    _s = (Math.imul(1664525, _s) + 1013904223) >>> 0;
+    return _s / 0x100000000;
+  }
+
+  // ── Bright green ground ───────────────────────────────────────────────────
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(SIZE + 60, SIZE + 60),
+    new THREE.MeshLambertMaterial({ color: 0x2d5a18 })
+  );
+  ground.rotation.x    = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // ── Teal water planes ─────────────────────────────────────────────────────
+  const waterMat = new THREE.MeshLambertMaterial({ color: 0x0e8a8a });
+  for (const [wx, wz, ww, wd] of [
+    [ 80, -75, 38, 26],
+    [ 10, -88, 22, 16],
+    [ 90,  45, 28, 20],
+    [ 70,  80, 24, 18],
+    [  0,   0, 26, 26],
+    [-20,  30, 14, 10],
+    [ 40, -40, 18, 14],
+  ]) {
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(ww, wd), waterMat);
+    w.rotation.x = -Math.PI / 2;
+    w.position.set(wx, 0.06, wz);
+    scene.add(w);
+  }
+
+  // ── Structural boxes ──────────────────────────────────────────────────────
+  const M = {
+    wall:           new THREE.MeshLambertMaterial({ color: 0x0e1418 }),
+    central:        new THREE.MeshLambertMaterial({ color: 0x90a8b8, emissive: 0x102030 }),
+    central_arm:    new THREE.MeshLambertMaterial({ color: 0x80a0b0, emissive: 0x081820 }),
+    basin:          new THREE.MeshLambertMaterial({ color: 0x0e88bb, emissive: 0x003456 }),
+    greenhouse:     new THREE.MeshLambertMaterial({ color: 0x5a9858 }),
+    platform:       new THREE.MeshLambertMaterial({ color: 0x8098a0 }),
+    ruins:          new THREE.MeshLambertMaterial({ color: 0x706050 }),
+    building_terra: new THREE.MeshLambertMaterial({ color: 0xc8dce4 }),
+    building_bar:        new THREE.MeshLambertMaterial({ color: 0x907868 }),
+    rand_building_terra: new THREE.MeshLambertMaterial({ color: 0xd4c8a8 }),
+    rand_building_bar:   new THREE.MeshLambertMaterial({ color: 0x7a6858 }),
+    pillar_terra:   new THREE.MeshLambertMaterial({ color: 0x527040 }),
+    pillar_bar:     new THREE.MeshLambertMaterial({ color: 0x604838 }),
+    cover_terra:    new THREE.MeshLambertMaterial({ color: 0xa0b890 }),
+    cover_bar:      new THREE.MeshLambertMaterial({ color: 0x807060 }),
+    cover_neutral:  new THREE.MeshLambertMaterial({ color: 0x8898a0 }),
+  };
+
+  function getMat(b) {
+    const t = b.type, bi = b.biome;
+    if (t === 'wall')        return M.wall;
+    if (t === 'central')     return M.central;
+    if (t === 'central_arm') return M.central_arm;
+    if (t === 'basin')       return M.basin;
+    if (t === 'greenhouse')  return M.greenhouse;
+    if (t === 'platform')    return M.platform;
+    if (t === 'ruins')       return M.ruins;
+    if (t === 'building')       return bi === 'terra' ? M.building_terra      : M.building_bar;
+    if (t === 'rand_building') return bi === 'terra' ? M.rand_building_terra : M.rand_building_bar;
+    if (t === 'pillar')      return bi === 'terra' ? M.pillar_terra   : M.pillar_bar;
+    return bi === 'terra' ? M.cover_terra : bi === 'barren' ? M.cover_bar : M.cover_neutral;
+  }
+
+  function edgeStyle(b) {
+    const t = b.type, bi = b.biome;
+    if (t === 'central' || t === 'central_arm') return [0x44ddff, 0.80];
+    if (t === 'basin')                          return [0x22aaff, 0.90];
+    if (t === 'greenhouse')                     return [0x88ffaa, 0.55];
+    if (t === 'wall')                           return [0x334455, 0.06];
+    if (t === 'building' && bi === 'terra')     return [0x88ddff, 0.44];
+    if (t === 'building' && bi === 'barren')       return [0xddbb88, 0.36];
+    if (t === 'rand_building' && bi === 'terra')  return [0xaaccaa, 0.35];
+    if (t === 'rand_building' && bi === 'barren') return [0xccaa88, 0.30];
+    if (t === 'rand_building')                    return [0xaabbcc, 0.30];
+    if (t === 'ruins')                          return [0xaa8866, 0.28];
+    if (t === 'platform')                       return [0x99ccdd, 0.38];
+    if (t === 'pillar'   && bi === 'terra')     return [0x88cc66, 0.24];
+    if (t === 'pillar'   && bi === 'barren')    return [0xaa8855, 0.20];
+    if (bi === 'terra')                         return [0x88dd88, 0.22];
+    if (bi === 'barren')                        return [0xbb9977, 0.18];
+    return [0x99bbcc, 0.22];
+  }
+
+  for (const box of map.boxes) {
+    const geo  = new THREE.BoxGeometry(box.w, box.h, box.d);
+    const mesh = new THREE.Mesh(geo, getMat(box));
+    mesh.position.set(box.x, box.y, box.z);
+    mesh.castShadow    = box.type !== 'wall';
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    const [ec, eo] = edgeStyle(box);
+    const el = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: ec, transparent: true, opacity: eo })
+    );
+    el.position.copy(mesh.position);
+    scene.add(el);
+  }
+
+  // ── Trees ─────────────────────────────────────────────────────────────────
+  const trunkMat  = new THREE.MeshLambertMaterial({ color: 0x5c3d1e });
+  const cherryMat = new THREE.MeshLambertMaterial({ color: 0xee88bb });
+  const greenMat  = new THREE.MeshLambertMaterial({ color: 0x4a8a28 });
+  const darkGreen = new THREE.MeshLambertMaterial({ color: 0x2a5818 });
+
+  function addTree(tx, tz, type) {
+    const th = 2.5 + rng() * 3.5;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, th, 6), trunkMat);
+    trunk.position.set(tx, th / 2, tz);
+    trunk.castShadow = false; // decorative — skip shadow map
+    scene.add(trunk);
+    const cm = type === 'cherry' ? cherryMat : (rng() > 0.45 ? greenMat : darkGreen);
+    const cs = 1.8 + rng() * 2.0;
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(cs, 7, 5), cm);
+    canopy.position.set(tx, th + cs * 0.55, tz);
+    canopy.castShadow = false;
+    scene.add(canopy);
+    if (type === 'cherry') {
+      const c2 = new THREE.Mesh(new THREE.SphereGeometry(cs * 0.72, 6, 4), cherryMat);
+      c2.position.set(tx + cs * 0.55, th + cs * 0.30, tz + cs * 0.35);
+      scene.add(c2);
+      const c3 = new THREE.Mesh(new THREE.SphereGeometry(cs * 0.58, 6, 4), cherryMat);
+      c3.position.set(tx - cs * 0.45, th + cs * 0.38, tz - cs * 0.30);
+      scene.add(c3);
+    }
+  }
+
+  // Dense trees on terraformed (+x) side
+  for (let i = 0; i < 80; i++) {
+    const tx = 18 + rng() * 107;
+    const tz = (rng() - 0.5) * (SIZE - 20);
+    if (Math.sqrt(tx * tx + tz * tz) < 38) continue;
+    addTree(tx, tz, rng() < 0.40 ? 'cherry' : 'green');
+  }
+  // Sparse trees on barren (-x) side
+  for (let i = 0; i < 18; i++)
+    addTree(-50 - rng() * 65, (rng() - 0.5) * (SIZE - 30), 'green');
+  // ── Moss / rock boulders ──────────────────────────────────────────────────
+  const bMats = [
+    new THREE.MeshLambertMaterial({ color: 0x4a5838 }),
+    new THREE.MeshLambertMaterial({ color: 0x686050 }),
+    new THREE.MeshLambertMaterial({ color: 0x384428 }),
+  ];
+  for (let i = 0; i < 60; i++) {
+    const bx = (rng() - 0.5) * (SIZE - 20);
+    const bz = (rng() - 0.5) * (SIZE - 20);
+    if (Math.sqrt(bx * bx + bz * bz) < 22) continue;
+    const bs = 0.7 + rng() * 2.2;
+    const bm = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(bs, 0),
+      bMats[Math.floor(rng() * bMats.length)]
+    );
+    bm.position.set(bx, bs * 0.55, bz);
+    bm.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+    bm.castShadow    = false; // decorative — skip shadow map
+    bm.receiveShadow = true;
+    scene.add(bm);
+  }
 }
