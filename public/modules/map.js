@@ -2,6 +2,55 @@
 import * as THREE from 'three';
 import { makePRNG } from './utls.js';
 
+const SHARED_GEOMETRY = {
+  box: new THREE.BoxGeometry(1, 1, 1),
+  plane: new THREE.PlaneGeometry(1, 1),
+  cylinder: new THREE.CylinderGeometry(0.25, 0.45, 1, 8),
+  sphere: new THREE.SphereGeometry(1, 9, 7),
+  torus: new THREE.TorusGeometry(1, 0.06, 6, 12),
+};
+
+const SHARED_MATERIALS = {
+  ground: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.0 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x1a8faa, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.82 }),
+  path: new THREE.MeshStandardMaterial({ color: 0xd4c8a8, roughness: 0.85, metalness: 0.0 }),
+  barrel: new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 0.78, metalness: 0.05 }),
+  band: new THREE.MeshStandardMaterial({ color: 0x303840, roughness: 0.50, metalness: 0.50 }),
+  fencePost: new THREE.MeshStandardMaterial({ color: 0x806040, roughness: 0.88 }),
+  fenceRail: new THREE.MeshStandardMaterial({ color: 0x705030, roughness: 0.90 }),
+  stem: new THREE.MeshStandardMaterial({ color: 0x388018, roughness: 0.9 }),
+  glow: new THREE.MeshStandardMaterial({ color: 0xffe850, transparent: true, opacity: 0.12, depthWrite: false, roughness: 1, metalness: 0 }),
+};
+
+const MAP_BASE_MATERIALS = {
+  wall: new THREE.MeshStandardMaterial({ color: 0x18202a, roughness: 0.9, metalness: 0.05 }),
+  house_body: new THREE.MeshStandardMaterial({ color: 0xddd0b8, roughness: 0.82, metalness: 0.0 }),
+  house_roof: new THREE.MeshStandardMaterial({ color: 0x8a2818, roughness: 0.75, metalness: 0.0 }),
+  house_chimney: new THREE.MeshStandardMaterial({ color: 0x6a3828, roughness: 0.88, metalness: 0.0 }),
+  house_door: new THREE.MeshStandardMaterial({ color: 0x4a2808, roughness: 0.70, metalness: 0.05 }),
+  house_window: new THREE.MeshStandardMaterial({ color: 0x90c8e0, roughness: 0.15, metalness: 0.1, emissive: 0x6ab8d8, emissiveIntensity: 0.3 }),
+  garden: new THREE.MeshStandardMaterial({ color: 0x3a8820, roughness: 0.90, metalness: 0.0 }),
+  fountain_base: new THREE.MeshStandardMaterial({ color: 0xb0c0c8, roughness: 0.65, metalness: 0.05 }),
+  fountain_rim: new THREE.MeshStandardMaterial({ color: 0x98b0bc, roughness: 0.60, metalness: 0.08 }),
+  fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x88a0ac, roughness: 0.60, metalness: 0.08 }),
+  bench: new THREE.MeshStandardMaterial({ color: 0x7a5828, roughness: 0.75, metalness: 0.02 }),
+  lamp_post: new THREE.MeshStandardMaterial({ color: 0x222e38, roughness: 0.55, metalness: 0.40 }),
+  lamp_head: new THREE.MeshStandardMaterial({ color: 0xffe870, roughness: 0.30, metalness: 0.2, emissive: 0xffee40, emissiveIntensity: 1.2 }),
+  platform: new THREE.MeshStandardMaterial({ color: 0x7a8e98, roughness: 0.70, metalness: 0.08 }),
+  ruins: new THREE.MeshStandardMaterial({ color: 0x6a5848, roughness: 0.92, metalness: 0.0 }),
+  building_terra: new THREE.MeshStandardMaterial({ color: 0xdce8f0, roughness: 0.78, metalness: 0.02 }),
+  building_bar: new THREE.MeshStandardMaterial({ color: 0xe0c898, roughness: 0.82, metalness: 0.0 }),
+  rand_building_terra: new THREE.MeshStandardMaterial({ color: 0xc8d8b0, roughness: 0.80, metalness: 0.0 }),
+  rand_building_bar: new THREE.MeshStandardMaterial({ color: 0xd8b880, roughness: 0.82, metalness: 0.0 }),
+  pillar_terra: new THREE.MeshStandardMaterial({ color: 0x4a7830, roughness: 0.80, metalness: 0.0 }),
+  pillar_barren: new THREE.MeshStandardMaterial({ color: 0x9a6838, roughness: 0.85, metalness: 0.0 }),
+  pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x7a8a90, roughness: 0.72, metalness: 0.05 }),
+  cover_terra: new THREE.MeshStandardMaterial({ color: 0x608840, roughness: 0.85, metalness: 0.0 }),
+  cover_barren: new THREE.MeshStandardMaterial({ color: 0xb08040, roughness: 0.88, metalness: 0.0 }),
+  cover_neutral: new THREE.MeshStandardMaterial({ color: 0x6a8090, roughness: 0.78, metalness: 0.05 }),
+};
+
+
 
 
 
@@ -207,7 +256,7 @@ export function generateMap(seed) {
   const HIDEOUT_COUNT = 10 + Math.floor(rng() * 11);
   for (let attempt = 0, placed = 0; attempt < 300 && placed < HIDEOUT_COUNT; attempt++) {
     const hx = (rng()-0.5)*(SIZE-80), hz = (rng()-0.5)*(SIZE-80);
-    if (Math.sqrt(hx*hx+hz*hz) < 110) continue;
+    const hideoutDistSq = hx*hx + hz*hz; if (hideoutDistSq < 110*110) continue;
     const biome = hx > 5 ? 'terra' : hx < -5 ? 'barren' : 'neutral';
     buildHideout(hx, hz, biome);
     placed++;
@@ -275,84 +324,45 @@ export function buildMap(scene, map) {
   const pos = gGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
-    // Smooth biome blend: barren left (-x), terra right (+x)
     const t = Math.max(0, Math.min(1, (vx + 80) / 160));
-    // barren: 0x8c6a3a  neutral: 0x4a7828  terra: 0x3a7020
     const r = 0.55 * (1-t) + 0.23 * t;
     const g = 0.42 * (1-t) + 0.47 * t;
     const b = 0.23 * (1-t) + 0.13 * t;
     gColors.push(r, g, b);
   }
   gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gColors, 3));
-  const groundMat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.95,
-    metalness: 0.0,
-  });
-  const ground = new THREE.Mesh(gGeo, groundMat);
+  const ground = new THREE.Mesh(gGeo, SHARED_MATERIALS.ground);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
   // ── Water ─────────────────────────────────────────────────────────────────
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x1a8faa, roughness: 0.15, metalness: 0.3,
-    transparent: true, opacity: 0.82,
-  });
+    // ── Water
   for (const [wx, wz, ww, wd] of [
     [ 80,-75,38,26],[ 10,-88,22,16],[ 90, 45,28,20],
     [ 70, 80,24,18],[  0,  0,26,26],[-20, 30,14,10],[40,-40,18,14],
   ]) {
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(ww, wd), waterMat);
+    const w = new THREE.Mesh(SHARED_GEOMETRY.plane, SHARED_MATERIALS.water);
+    w.scale.set(ww, wd, 1);
     w.rotation.x = -Math.PI / 2;
     w.position.set(wx, 0.08, wz);
     scene.add(w);
   }
 
+
   // ── Path tiles ────────────────────────────────────────────────────────────
-  const pathMat = new THREE.MeshStandardMaterial({
-    color: 0xd4c8a8, roughness: 0.85, metalness: 0.0,
-  });
+    // ── Path tiles
   for (const b of map.boxes.filter(b => b.type === 'path')) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(b.w, b.d), pathMat);
+    const m = new THREE.Mesh(SHARED_GEOMETRY.plane, SHARED_MATERIALS.path);
+    m.scale.set(b.w, b.d, 1);
     m.rotation.x = -Math.PI / 2;
     m.position.set(b.x, 0.09, b.z);
     scene.add(m);
   }
 
-  // ── PBR material palette ──────────────────────────────────────────────────
-  // All MeshStandardMaterial — roughness/metalness drive the look
-  function std(color, roughness = 0.8, metalness = 0.0, emissive = 0x000000, emissiveIntensity = 0) {
-    return new THREE.MeshStandardMaterial({ color, roughness, metalness, emissive, emissiveIntensity });
-  }
 
-  const M = {
-    wall:                std(0x18202a, 0.9, 0.05),
-    house_body:          std(0xddd0b8, 0.82, 0.0),    // warm plaster
-    house_roof:          std(0x8a2818, 0.75, 0.0),    // dark terracotta
-    house_chimney:       std(0x6a3828, 0.88, 0.0),    // dark brick
-    house_door:          std(0x4a2808, 0.70, 0.05),   // dark oak
-    house_window:        std(0x90c8e0, 0.15, 0.1, 0x6ab8d8, 0.3), // glazed, slight glow
-    garden:              std(0x3a8820, 0.90, 0.0),
-    fountain_base:       std(0xb0c0c8, 0.65, 0.05),
-    fountain_rim:        std(0x98b0bc, 0.60, 0.08),
-    fountain_pillar:     std(0x88a0ac, 0.60, 0.08),
-    bench:               std(0x7a5828, 0.75, 0.02),
-    lamp_post:           std(0x222e38, 0.55, 0.40),   // brushed metal
-    lamp_head:           std(0xffe870, 0.30, 0.2, 0xffee40, 1.2),
-    platform:            std(0x7a8e98, 0.70, 0.08),
-    ruins:               std(0x6a5848, 0.92, 0.0),
-    building_terra:      std(0xdce8f0, 0.78, 0.02),
-    building_bar:        std(0xe0c898, 0.82, 0.0),
-    rand_building_terra: std(0xc8d8b0, 0.80, 0.0),
-    rand_building_bar:   std(0xd8b880, 0.82, 0.0),
-    pillar_terra:        std(0x4a7830, 0.80, 0.0),
-    pillar_barren:       std(0x9a6838, 0.85, 0.0),
-    pillar_neutral:      std(0x7a8a90, 0.72, 0.05),
-    cover_terra:         std(0x608840, 0.85, 0.0),
-    cover_barren:        std(0xb08040, 0.88, 0.0),
-    cover_neutral:       std(0x6a8090, 0.78, 0.05),
-  };
+  // ── PBR material palette (cached global)
+  const M = MAP_BASE_MATERIALS;
 
   function getMat(b) {
     const t = b.type, bi = b.biome;
@@ -368,7 +378,8 @@ export function buildMap(scene, map) {
     if (b.type === 'path') continue;
     const mat = getMat(b);
     if (!mat) continue;
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), mat);
+        const mesh = new THREE.Mesh(SHARED_GEOMETRY.box, mat);
+    mesh.scale.set(b.w, b.h, b.d);
     mesh.position.set(b.x, b.y, b.z);
     mesh.castShadow    = b.type !== 'wall';
     mesh.receiveShadow = true;
@@ -419,7 +430,7 @@ export function buildMap(scene, map) {
   for (let i = 0; i < 90; i++) {
     const tx = 18 + rng() * 107;
     const tz = (rng() - 0.5) * (SIZE - 20);
-    if (Math.sqrt(tx*tx + tz*tz) < 38) continue;
+    const treeDistSq = tx*tx + tz*tz; if (treeDistSq < 38*38) continue;
     const type = rng() < 0.35 ? 'cherry' : rng() < 0.2 ? 'autumn' : 'green';
     addTree(tx, tz, type);
   }
@@ -434,9 +445,10 @@ export function buildMap(scene, map) {
   ];
   for (let i = 0; i < 70; i++) {
     const bx = (rng()-0.5)*(SIZE-20), bz = (rng()-0.5)*(SIZE-20);
-    if (Math.sqrt(bx*bx+bz*bz) < 22) continue;
+    const boulderDistSq = bx*bx + bz*bz; if (boulderDistSq < 22*22) continue;
     const bs = 0.7 + rng() * 2.2;
-    const bm = new THREE.Mesh(new THREE.IcosahedronGeometry(bs, 1), bMats[Math.floor(rng()*3)]);
+        const bm = new THREE.Mesh(SHARED_GEOMETRY.icosa, bMats[Math.floor(rng()*3)]);
+    bm.scale.set(bs, bs, bs);
     bm.position.set(bx, bs*0.55, bz);
     bm.rotation.set(rng()*Math.PI, rng()*Math.PI, rng()*Math.PI);
     bm.castShadow = true;
@@ -448,12 +460,13 @@ export function buildMap(scene, map) {
   const crateColors = [0xb88040, 0xa87030, 0xc89050];
   for (let i = 0; i < 35; i++) {
     const cx = (rng()-0.5)*(SIZE-60), cz = (rng()-0.5)*(SIZE-60);
-    if (Math.sqrt(cx*cx+cz*cz) < 90) continue;
+    const crateDistSq = cx*cx + cz*cz; if (crateDistSq < 90*90) continue;
     const cs2 = 1.2 + rng() * 1.5;
     const cmat = new THREE.MeshStandardMaterial({
       color: crateColors[Math.floor(rng()*3)], roughness: 0.80, metalness: 0.0
     });
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(cs2, cs2, cs2), cmat);
+    const crate = new THREE.Mesh(SHARED_GEOMETRY.box, cmat);
+    crate.scale.set(cs2, cs2, cs2);
     crate.position.set(cx, cs2/2, cz);
     crate.rotation.y = rng() * Math.PI * 0.5;
     crate.castShadow = true;
@@ -466,15 +479,17 @@ export function buildMap(scene, map) {
   const bandMat   = new THREE.MeshStandardMaterial({ color: 0x303840, roughness: 0.50, metalness: 0.50 });
   for (let i = 0; i < 20; i++) {
     const bx = -(40+rng()*100), bz = (rng()-0.5)*(SIZE-80);
-    if (Math.sqrt(bx*bx+bz*bz) < 80) continue;
+    const barrelDistSq = bx*bx + bz*bz; if (barrelDistSq < 80*80) continue;
     const br = 0.6+rng()*0.4, bh = 1.4+rng()*0.6;
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(br, br, bh, 12), barrelMat);
+        const barrel = new THREE.Mesh(SHARED_GEOMETRY.cylinder, SHARED_MATERIALS.barrel);
+    barrel.scale.set(br, bh, br);
     barrel.position.set(bx, bh/2, bz);
     barrel.castShadow = true;
     scene.add(barrel);
     // Metal band rings
     for (const by of [0.25, 0.75]) {
-      const band = new THREE.Mesh(new THREE.TorusGeometry(br+0.04, 0.06, 6, 12), bandMat);
+      const band = new THREE.Mesh(SHARED_GEOMETRY.torus, SHARED_MATERIALS.band);
+      band.scale.set(br+0.04, br+0.04, 0.06);
       band.rotation.x = Math.PI / 2;
       band.position.set(bx, bh*by, bz);
       scene.add(band);
@@ -504,7 +519,7 @@ export function buildMap(scene, map) {
   const stemMat = new THREE.MeshStandardMaterial({ color: 0x388018, roughness: 0.9 });
   for (let i = 0; i < 50; i++) {
     const fx = 30 + rng()*90, fz = (rng()-0.5)*(SIZE-60);
-    if (Math.sqrt(fx*fx+fz*fz) < 50) continue;
+    const flowerDistSq = fx*fx + fz*fz; if (flowerDistSq < 50*50) continue;
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 5), stemMat);
     stem.position.set(fx, 0.45, fz);
     scene.add(stem);
