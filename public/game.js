@@ -304,11 +304,11 @@ function getPlayerColor(id) { return COLORS[(id - 1) % COLORS.length]; }
 
 function buildHumanoid(color) {
   const group   = new THREE.Group();
-  const mat     = new THREE.MeshLambertMaterial({ color });
-  const dark    = new THREE.MeshLambertMaterial({ color: 0x0d1520 });
-  const plating = new THREE.MeshLambertMaterial({ color: 0x1a2535 });
-  const visor   = new THREE.MeshLambertMaterial({ color: 0x59b8ff, emissive: new THREE.Color(0x1a4466) });
-  const accent  = new THREE.MeshLambertMaterial({ color: 0x00ccff, emissive: new THREE.Color(0x004466) });
+  const mat     = new THREE.MeshStandardMaterial({ color, metalness: 0.6, roughness: 0.4 });
+  const dark    = new THREE.MeshStandardMaterial({ color: 0x0d1520, metalness: 0.6, roughness: 0.4 });
+  const plating = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.6, roughness: 0.4 });
+  const visor   = new THREE.MeshStandardMaterial({ color: 0x59b8ff, emissive: new THREE.Color(0x1a4466), emissiveIntensity: 3, metalness: 0.6, roughness: 0.4 });
+  const accent  = new THREE.MeshStandardMaterial({ color: 0x00ccff, emissive: new THREE.Color(0x004466), emissiveIntensity: 2, metalness: 0.6, roughness: 0.4 });
 
   function box(w, h, d, ox, oy, oz, m) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? mat);
@@ -473,11 +473,11 @@ function buildViewmodel() {
   vmScene  = new THREE.Scene();
   vmCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.01, 10);
 
-  const plating = new THREE.MeshLambertMaterial({ color: 0x1e2e40 });
-  const dark    = new THREE.MeshLambertMaterial({ color: 0x0a1018 });
-  const joint   = new THREE.MeshLambertMaterial({ color: 0x101c28 });
-  const glow    = new THREE.MeshLambertMaterial({ color: 0x59b8ff, emissive: new THREE.Color(0x1a4466) });
-  const accent  = new THREE.MeshLambertMaterial({ color: 0x00ddff, emissive: new THREE.Color(0x006688) });
+  const plating = new THREE.MeshStandardMaterial({ color: 0x1e2e40, metalness: 0.6, roughness: 0.4 });
+  const dark    = new THREE.MeshStandardMaterial({ color: 0x0a1018, metalness: 0.6, roughness: 0.4 });
+  const joint   = new THREE.MeshStandardMaterial({ color: 0x101c28, metalness: 0.6, roughness: 0.4 });
+  const glow    = new THREE.MeshStandardMaterial({ color: 0x59b8ff, emissive: new THREE.Color(0x1a4466), emissiveIntensity: 3, metalness: 0.6, roughness: 0.4 });
+  const accent  = new THREE.MeshStandardMaterial({ color: 0x00ddff, emissive: new THREE.Color(0x006688), emissiveIntensity: 2, metalness: 0.6, roughness: 0.4 });
 
   vmGunGroup = new THREE.Group();
   vmGunGroup.position.set(0.22, -0.22, -0.44);
@@ -940,6 +940,14 @@ function renderLoop() {
         if (mesh.userData.armL) mesh.userData.armL.rotation.x = -Math.sin(walkPhase) * 0.3;
         if (mesh.userData.armR) mesh.userData.armR.rotation.x =  Math.sin(walkPhase) * 0.3;
       }
+
+      // Cannon recoil (game feel)
+      if (mesh.userData.gunGroup) {
+        const recoilBaseZ = -0.16;
+        const recoilAmount = Math.sin(now * 0.005 * 5) * 0.01;
+        mesh.userData.gunGroup.position.z = recoilBaseZ + recoilAmount;
+      }
+
       // Target ring spin + visibility
       if (mesh.userData.targetRing) {
         const ring = mesh.userData.targetRing;
