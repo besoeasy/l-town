@@ -8,12 +8,13 @@ const SHARED_GEOMETRY = {
   cylinder: new THREE.CylinderGeometry(0.25, 0.45, 1, 8),
   sphere: new THREE.SphereGeometry(1, 9, 7),
   torus: new THREE.TorusGeometry(1, 0.06, 6, 12),
+  icosa: new THREE.IcosahedronGeometry(1, 0),
 };
 
 const SHARED_MATERIALS = {
   ground: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.0 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x1a8faa, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.82 }),
-  path: new THREE.MeshStandardMaterial({ color: 0xd4c8a8, roughness: 0.85, metalness: 0.0 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x1262a0, roughness: 0.06, metalness: 0.55, transparent: true, opacity: 0.80 }),
+  path: new THREE.MeshStandardMaterial({ color: 0x252525, roughness: 0.96, metalness: 0.0 }),
   barrel: new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 0.78, metalness: 0.05 }),
   band: new THREE.MeshStandardMaterial({ color: 0x303840, roughness: 0.50, metalness: 0.50 }),
   fencePost: new THREE.MeshStandardMaterial({ color: 0x806040, roughness: 0.88 }),
@@ -23,31 +24,33 @@ const SHARED_MATERIALS = {
 };
 
 const MAP_BASE_MATERIALS = {
-  wall: new THREE.MeshStandardMaterial({ color: 0x18202a, roughness: 0.9, metalness: 0.05 }),
-  house_body: new THREE.MeshStandardMaterial({ color: 0xddd0b8, roughness: 0.82, metalness: 0.0 }),
-  house_roof: new THREE.MeshStandardMaterial({ color: 0x8a2818, roughness: 0.75, metalness: 0.0 }),
-  house_chimney: new THREE.MeshStandardMaterial({ color: 0x6a3828, roughness: 0.88, metalness: 0.0 }),
-  house_door: new THREE.MeshStandardMaterial({ color: 0x4a2808, roughness: 0.70, metalness: 0.05 }),
-  house_window: new THREE.MeshStandardMaterial({ color: 0x90c8e0, roughness: 0.15, metalness: 0.1, emissive: 0x6ab8d8, emissiveIntensity: 0.3 }),
-  garden: new THREE.MeshStandardMaterial({ color: 0x3a8820, roughness: 0.90, metalness: 0.0 }),
-  fountain_base: new THREE.MeshStandardMaterial({ color: 0xb0c0c8, roughness: 0.65, metalness: 0.05 }),
-  fountain_rim: new THREE.MeshStandardMaterial({ color: 0x98b0bc, roughness: 0.60, metalness: 0.08 }),
-  fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x88a0ac, roughness: 0.60, metalness: 0.08 }),
-  bench: new THREE.MeshStandardMaterial({ color: 0x7a5828, roughness: 0.75, metalness: 0.02 }),
-  lamp_post: new THREE.MeshStandardMaterial({ color: 0x222e38, roughness: 0.55, metalness: 0.40 }),
-  lamp_head: new THREE.MeshStandardMaterial({ color: 0xffe870, roughness: 0.30, metalness: 0.2, emissive: 0xffee40, emissiveIntensity: 1.2 }),
-  platform: new THREE.MeshStandardMaterial({ color: 0x7a8e98, roughness: 0.70, metalness: 0.08 }),
-  ruins: new THREE.MeshStandardMaterial({ color: 0x6a5848, roughness: 0.92, metalness: 0.0 }),
-  building_terra: new THREE.MeshStandardMaterial({ color: 0xdce8f0, roughness: 0.78, metalness: 0.02 }),
-  building_bar: new THREE.MeshStandardMaterial({ color: 0xe0c898, roughness: 0.82, metalness: 0.0 }),
-  rand_building_terra: new THREE.MeshStandardMaterial({ color: 0xc8d8b0, roughness: 0.80, metalness: 0.0 }),
-  rand_building_bar: new THREE.MeshStandardMaterial({ color: 0xd8b880, roughness: 0.82, metalness: 0.0 }),
+  wall: new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.82, metalness: 0.08 }),
+  house_body: new THREE.MeshStandardMaterial({ color: 0xdce0dd, roughness: 0.78, metalness: 0.02 }),   // light concrete
+  house_roof: new THREE.MeshStandardMaterial({ color: 0x2a2e34, roughness: 0.70, metalness: 0.05 }),   // flat dark roof
+  house_chimney: new THREE.MeshStandardMaterial({ color: 0x383c42, roughness: 0.80, metalness: 0.05 }), // grey vent shaft
+  house_door: new THREE.MeshStandardMaterial({ color: 0x060810, roughness: 0.25, metalness: 0.18 }),   // dark glass door
+  house_window: new THREE.MeshStandardMaterial({ color: 0x5a9ec8, roughness: 0.10, metalness: 0.22, emissive: 0x2468a0, emissiveIntensity: 0.45 }), // reflective glass
+  garden: new THREE.MeshStandardMaterial({ color: 0x3a8824, roughness: 0.88, metalness: 0.0 }),
+  fountain_base: new THREE.MeshStandardMaterial({ color: 0xa0aeb6, roughness: 0.58, metalness: 0.08 }), // polished concrete
+  fountain_rim: new THREE.MeshStandardMaterial({ color: 0x909ea6, roughness: 0.52, metalness: 0.12 }),
+  fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x8898a2, roughness: 0.50, metalness: 0.14 }),
+  bench: new THREE.MeshStandardMaterial({ color: 0x565e64, roughness: 0.68, metalness: 0.20 }),         // steel/concrete bench
+  lamp_post: new THREE.MeshStandardMaterial({ color: 0x1a2028, roughness: 0.42, metalness: 0.65 }),    // dark steel
+  lamp_head: new THREE.MeshStandardMaterial({ color: 0xffe870, roughness: 0.22, metalness: 0.28, emissive: 0xffee40, emissiveIntensity: 1.4 }),
+  platform: new THREE.MeshStandardMaterial({ color: 0x888e94, roughness: 0.76, metalness: 0.06 }),     // concrete
+  ruins: new THREE.MeshStandardMaterial({ color: 0x6a6058, roughness: 0.94, metalness: 0.0 }),
+  building_terra: new THREE.MeshStandardMaterial({ color: 0xd4dce0, roughness: 0.76, metalness: 0.03 }),
+  building_bar: new THREE.MeshStandardMaterial({ color: 0xd0c9a4, roughness: 0.80, metalness: 0.0 }),
+  rand_building_terra: new THREE.MeshStandardMaterial({ color: 0xc8d4bc, roughness: 0.78, metalness: 0.0 }),
+  rand_building_bar: new THREE.MeshStandardMaterial({ color: 0xd4b878, roughness: 0.82, metalness: 0.0 }),
   pillar_terra: new THREE.MeshStandardMaterial({ color: 0x4a7830, roughness: 0.80, metalness: 0.0 }),
   pillar_barren: new THREE.MeshStandardMaterial({ color: 0x9a6838, roughness: 0.85, metalness: 0.0 }),
-  pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x7a8a90, roughness: 0.72, metalness: 0.05 }),
-  cover_terra: new THREE.MeshStandardMaterial({ color: 0x608840, roughness: 0.85, metalness: 0.0 }),
-  cover_barren: new THREE.MeshStandardMaterial({ color: 0xb08040, roughness: 0.88, metalness: 0.0 }),
-  cover_neutral: new THREE.MeshStandardMaterial({ color: 0x6a8090, roughness: 0.78, metalness: 0.05 }),
+  pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x78888e, roughness: 0.68, metalness: 0.08 }),
+  cover_terra: new THREE.MeshStandardMaterial({ color: 0x5a8038, roughness: 0.85, metalness: 0.0 }),
+  cover_barren: new THREE.MeshStandardMaterial({ color: 0xa87838, roughness: 0.88, metalness: 0.0 }),
+  cover_neutral: new THREE.MeshStandardMaterial({ color: 0x688090, roughness: 0.74, metalness: 0.08 }),
+  road_marking: new THREE.MeshStandardMaterial({ color: 0xf0f0e0, roughness: 0.90, metalness: 0.0 }),
+  bollard: new THREE.MeshStandardMaterial({ color: 0xd0c010, roughness: 0.62, metalness: 0.18 }),       // yellow safety bollard
 };
 
 
@@ -81,26 +84,45 @@ export function generateMap(seed) {
   box( -HALF,  wH/2,     0,   wT, wH, SIZE,  'wall', 'neutral');
   box(  HALF,  wH/2,     0,   wT, wH, SIZE,  'wall', 'neutral');
 
-  // ── Central house ─────────────────────────────────────────────────────────
-  box(0, 5, 0, 18, 10, 14, 'house_body', 'neutral');
-  box(0, 11.5, 0, 20, 3, 16, 'house_roof', 'neutral');
-  box(5, 14, -3, 2, 5, 2, 'house_chimney', 'neutral');
-  box(0, 0.3, 9, 14, 0.6, 4, 'platform', 'neutral');
-  box(-5, 2.5, 11, 1, 5, 1, 'pillar', 'neutral');
-  box( 5, 2.5, 11, 1, 5, 1, 'pillar', 'neutral');
-  box(0, 5.2, 10.5, 13, 0.5, 4, 'platform', 'neutral');
-  box(0, 2.5, 7.1, 3, 5, 0.5, 'house_door', 'neutral');
-  box(-5, 6, 7.1, 3, 2.5, 0.4, 'house_window', 'neutral');
-  box( 5, 6, 7.1, 3, 2.5, 0.4, 'house_window', 'neutral');
-  box(-5, 6, -7.1, 3, 2.5, 0.4, 'house_window', 'neutral');
-  box( 5, 6, -7.1, 3, 2.5, 0.4, 'house_window', 'neutral');
-  box(-9.1, 6, -2, 0.4, 2.5, 3, 'house_window', 'neutral');
-  box( 9.1, 6, -2, 0.4, 2.5, 3, 'house_window', 'neutral');
-  box(0, 0.3, -10, 16, 0.6, 6, 'platform', 'neutral');
-  for (let fx = -6; fx <= 6; fx += 3)
-    box(fx, 1.5, 13, 0.5, 3, 0.5, 'cover', 'neutral');
-  box(-8, 0.4, 9, 4, 0.8, 2, 'garden', 'neutral');
-  box( 8, 0.4, 9, 4, 0.8, 2, 'garden', 'neutral');
+  // ── Central office tower (modern 5-floor) ────────────────────────────────
+  const FLOORS = 5, FH = 3.8;
+  const BLDG_H = FLOORS * FH; // 19 units tall
+  // Main concrete core
+  box(0, BLDG_H/2, 0, 20, BLDG_H, 15, 'house_body', 'neutral');
+  // Glass curtain wall — front & back full-height panels
+  box(0, BLDG_H/2,  7.6, 16, BLDG_H, 0.4, 'house_window', 'neutral');
+  box(0, BLDG_H/2, -7.6, 16, BLDG_H, 0.4, 'house_window', 'neutral');
+  // Side facade windows per floor
+  for (let f = 0; f < FLOORS; f++) {
+    const wy = (f + 0.55) * FH;
+    box(-10.2, wy, -1,  0.3, FH*0.58, 5.5, 'house_window', 'neutral');
+    box(-10.2, wy,  5,  0.3, FH*0.58, 4.0, 'house_window', 'neutral');
+    box( 10.2, wy, -1,  0.3, FH*0.58, 5.5, 'house_window', 'neutral');
+    box( 10.2, wy,  5,  0.3, FH*0.58, 4.0, 'house_window', 'neutral');
+  }
+  // Horizontal spandrel bands between floors (concrete ledges)
+  for (let f = 1; f <= FLOORS; f++)
+    box(0, f * FH, 0, 21, 0.35, 16, 'platform', 'neutral');
+  // Rooftop parapet
+  box(0, BLDG_H + 0.65, 0, 22, 1.3, 17, 'wall', 'neutral');
+  // Rooftop HVAC units
+  box(-5, BLDG_H + 1.6, -1,   5, 1.8, 3.5, 'cover', 'neutral');
+  box( 5, BLDG_H + 1.6, -1,   5, 1.8, 3.5, 'cover', 'neutral');
+  box( 0, BLDG_H + 1.3,  4,   3, 1.4, 2.5, 'house_chimney', 'neutral'); // vent shaft
+  // Entrance canopy + forecourt slab
+  box(0, 0.05, 10.5, 16, 0.1, 5, 'path', 'neutral');
+  box(0, FH - 0.1, 10.8, 16, 0.35, 4.8, 'platform', 'neutral');
+  // Entrance glass doors (double)
+  box(-3.2, FH*0.42, 7.7, 3.0, FH*0.78, 0.3, 'house_door', 'neutral');
+  box( 3.2, FH*0.42, 7.7, 3.0, FH*0.78, 0.3, 'house_door', 'neutral');
+  // Entrance columns
+  for (const px of [-5.5, 0, 5.5])
+    box(px, FH/2, 13, 0.7, FH, 0.7, 'pillar', 'neutral');
+  // Rear service platform
+  box(0, 0.3, -11, 16, 0.6, 7, 'platform', 'neutral');
+  // Planters / garden beds at entrance
+  box(-9, 0.45, 11, 4, 0.9, 2.5, 'garden', 'neutral');
+  box( 9, 0.45, 11, 4, 0.9, 2.5, 'garden', 'neutral');
 
   // ── Courtyard walls ───────────────────────────────────────────────────────
   const BH = 22, WT = 2, WH = 14, DW = 4, DH = 5;
@@ -137,14 +159,32 @@ export function generateMap(seed) {
   box(16, 3.5, -5, 4, 3, 4, 'cover', 'neutral');
   box(16,   7,-11, 4, 2, 4, 'cover', 'neutral');
 
-  // ── Paths, lamps, fountain, benches ───────────────────────────────────────
-  for (let pz = 15; pz < 80; pz += 10)
-    box(0, 0.05, pz, 5, 0.1, 8, 'path', 'neutral');
-  for (let pz = -15; pz > -80; pz -= 10)
-    box(0, 0.05, pz, 5, 0.1, 8, 'path', 'neutral');
-  for (const [lx, lz] of [[-4,30],[4,30],[-4,60],[4,60],[-4,-30],[4,-30],[-4,-60],[4,-60]]) {
-    box(lx, 3, lz, 0.4, 6, 0.4, 'lamp_post', 'neutral');
-    box(lx, 6.3, lz, 1.5, 0.5, 0.5, 'lamp_head', 'neutral');
+  // ── Continuous roads, modern L-arm lamps, bollards, road markings ─────────
+  box(0, 0.05,  45, 6.5, 0.1, 70, 'path', 'neutral');  // north road
+  box(0, 0.05, -45, 6.5, 0.1, 70, 'path', 'neutral');  // south road
+  // Dashed centre-line road markings
+  for (let pz = 17; pz < 82; pz += 5)
+    box(0, 0.1, pz, 0.28, 0.015, 2.2, 'road_marking', 'neutral');
+  for (let pz = -17; pz > -82; pz -= 5)
+    box(0, 0.1, pz, 0.28, 0.015, 2.2, 'road_marking', 'neutral');
+  // Raised sidewalk curb strips
+  for (const side of [-1, 1]) {
+    box(side * 3.6, 0.12,  45, 0.5, 0.24, 70, 'platform', 'neutral');
+    box(side * 3.6, 0.12, -45, 0.5, 0.24, 70, 'platform', 'neutral');
+  }
+  // Modern L-arm street lamps (tall pole + horizontal arm + lamp head)
+  for (const [lx, lz, arm] of [
+    [-4, 30, 1], [4, 30, -1], [-4, 57, 1], [4, 57, -1],
+    [-4,-30, 1], [4,-30, -1], [-4,-57, 1], [4,-57, -1],
+  ]) {
+    box(lx, 5.1, lz, 0.28, 10.2, 0.28, 'lamp_post', 'neutral');           // pole
+    box(lx + arm * 1.3, 9.75, lz, 2.6, 0.22, 0.22, 'lamp_post', 'neutral'); // arm
+    box(lx + arm * 2.5, 9.48, lz, 0.9, 0.45, 0.70, 'lamp_head', 'neutral'); // head
+  }
+  // Yellow safety bollards at road edges
+  for (const pz of [22, 32, 42, 52, 62, 72, -22, -32, -42, -52, -62, -72]) {
+    box(-4.6, 0.55, pz, 0.38, 1.1, 0.38, 'bollard', 'neutral');
+    box( 4.6, 0.55, pz, 0.38, 1.1, 0.38, 'bollard', 'neutral');
   }
   box(0, 0.5, 17, 8, 1, 8, 'fountain_base', 'neutral');
   box(0, 1.2, 17, 6, 0.4, 6, 'fountain_rim', 'neutral');
@@ -282,6 +322,85 @@ export function generateMap(seed) {
     [340,100],[-340,100],[340,-100],[-340,-100],
   ]) spawns.push({ x, y:1.6, z });
 
+  // ── Parking garage (terra side NE, 3 levels) ─────────────────────────────
+  {
+    const GX = 68, GZ = 70, GW = 38, GD = 22, GFH = 3.8;
+    // Level floor slabs
+    box(GX, GFH,       GZ, GW,       0.28, GD,       'platform', 'terra');
+    box(GX, GFH * 2,   GZ, GW,       0.28, GD,       'platform', 'terra');
+    box(GX, GFH * 3,   GZ, GW + 0.5, 0.28, GD + 0.5, 'platform', 'terra'); // flat roof
+    // Perimeter parapet walls per level
+    for (let f = 0; f < 3; f++) {
+      const base = f * GFH + 0.28;
+      box(GX,                base + 0.65, GZ - GD / 2,  GW,  1.3, 0.4,  'wall',     'terra'); // back
+      box(GX - GW / 2,       base + 0.65, GZ,            0.4, 1.3, GD,   'wall',     'terra'); // left
+      box(GX + GW / 2,       base + 0.65, GZ,            0.4, 1.3, GD,   'wall',     'terra'); // right
+      box(GX - GW / 2 + 4.5, base + 0.65, GZ + GD / 2,  9,   1.3, 0.4,  'building', 'terra'); // front-left
+      box(GX + GW / 2 - 4.5, base + 0.65, GZ + GD / 2,  9,   1.3, 0.4,  'building', 'terra'); // front-right
+    }
+    // Structural columns (full height)
+    for (const [cx, cz] of [
+      [GX - 15, GZ - 8], [GX - 15, GZ + 8],
+      [GX,      GZ - 8], [GX,      GZ + 8],
+      [GX + 15, GZ - 8], [GX + 15, GZ + 8],
+    ]) box(cx, GFH * 1.5, cz, 0.9, GFH * 3, 0.9, 'pillar', 'terra');
+    // Parked car silhouettes — 5 bays × 3 levels
+    for (let ci = 0; ci < 5; ci++) {
+      const carX = GX - 13 + ci * 6.3;
+      for (let fl = 0; fl < 3; fl++)
+        box(carX, fl * GFH + 0.85, GZ - 5.5, 4.6, 1.7, 2.2, 'cover', 'terra');
+    }
+    // Drive-up ramp: stair-stepped from ground up to L1 (left-front corner)
+    for (let s = 0; s < 5; s++) {
+      const sh = (s + 1) * GFH / 5;
+      box(GX - GW / 2 + 4.5, sh / 2, GZ + GD / 2 + 1 + s * 2.0, 8, sh, 2.0, 'platform', 'terra');
+    }
+    spawns.push({ x: GX, y: GFH * 2 + 1.8, z: GZ });
+    spawns.push({ x: GX + 12, y: 1.8, z: GZ + 5 });
+  }
+
+  // ── Road tunnel / underpass (barren↔neutral border, runs N-S) ────────────
+  {
+    const TX = -78, TZ = 0, TW = 6, TH = 4.2, TL = 28, WT = 1.5;
+    box(TX - TW / 2 - WT / 2, TH / 2, TZ, WT, TH, TL, 'building', 'neutral'); // left wall
+    box(TX + TW / 2 + WT / 2, TH / 2, TZ, WT, TH, TL, 'building', 'neutral'); // right wall
+    box(TX, TH + 0.15, TZ, TW + WT * 2, 0.3, TL, 'platform', 'neutral');      // ceiling slab
+    // Portal beams at each entrance
+    box(TX, TH + 0.3, TZ + TL / 2, TW + WT * 2, 0.6, 0.5, 'platform', 'neutral');
+    box(TX, TH + 0.3, TZ - TL / 2, TW + WT * 2, 0.6, 0.5, 'platform', 'neutral');
+    // Road surface inside
+    box(TX, 0.06, TZ, TW, 0.1, TL, 'path', 'neutral');
+    // Dashed centre-line inside tunnel
+    for (let mz = TZ - TL / 2 + 2; mz < TZ + TL / 2; mz += 4)
+      box(TX, 0.11, mz, 0.28, 0.015, 1.8, 'road_marking', 'neutral');
+    spawns.push({ x: TX, y: 1.6, z: TZ + 8 });
+    spawns.push({ x: TX, y: 1.6, z: TZ - 8 });
+  }
+
+  // ── Impact crater (barren zone SW) ───────────────────────────────────────
+  {
+    const CR_X = -215, CR_Z = -210, CR_R = 28;
+    // Outer rim — 14 irregular boulders
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 7) {
+      const jitter = (rng() - 0.5) * 8;
+      const rx = CR_X + Math.cos(a) * (CR_R + jitter);
+      const rz = CR_Z + Math.sin(a) * (CR_R + jitter);
+      const rh = 2.5 + rng() * 3.5, rw = 2 + rng() * 3;
+      box(rx, rh / 2, rz, rw, rh, rw * (0.7 + rng() * 0.6), 'cover', 'barren');
+    }
+    // Inner ring — smaller spill rocks
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 5) {
+      const rx = CR_X + Math.cos(a) * CR_R * 0.55;
+      const rz = CR_Z + Math.sin(a) * CR_R * 0.55;
+      const rh = 1.2 + rng() * 1.5;
+      box(rx, rh / 2, rz, 1.5 + rng() * 1.5, rh, 1.5 + rng() * 1.5, 'cover', 'barren');
+    }
+    // Central impact mound
+    box(CR_X, 0.8, CR_Z, 5, 1.6, 5, 'cover', 'barren');
+    spawns.push({ x: CR_X + CR_R * 0.4, y: 1.6, z: CR_Z });
+    spawns.push({ x: CR_X - CR_R * 0.4, y: 1.6, z: CR_Z });
+  }
+
   return { floor:{ w:SIZE, d:SIZE }, boxes, spawns, pois:[] };
 }
 
@@ -317,18 +436,24 @@ export function buildMap(scene, map) {
   // renderer.toneMappingExposure = 1.1;
   // renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  // ── Ground — single plane, biome color via vertex colors ─────────────────
-  // One seamless plane avoids all Z-fighting
-  const gGeo = new THREE.PlaneGeometry(SIZE + 80, SIZE + 80, 80, 80);
+  // ── Ground — single plane, biome colour via vertex colours ──────────────
+  // Higher subdivision + organic noise for natural field variation
+  const gGeo = new THREE.PlaneGeometry(SIZE + 80, SIZE + 80, 120, 120);
   const gColors = [];
   const pos = gGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
-    const t = Math.max(0, Math.min(1, (vx + 80) / 160));
-    const r = 0.55 * (1-t) + 0.23 * t;
-    const g = 0.42 * (1-t) + 0.47 * t;
-    const b = 0.23 * (1-t) + 0.13 * t;
-    gColors.push(r, g, b);
+    const vy = pos.getY(i);
+    // multi-frequency sine noise for organic ground variation
+    const n = (Math.sin(vx*0.06 + vy*0.11)*0.5
+             + Math.sin(vx*0.17 - vy*0.09)*0.25
+             + Math.sin(vx*0.04 + vy*0.04)*0.14) * 0.042;
+    const t = Math.max(0, Math.min(1, (vx + 100) / 200));
+    // terra (right/+x): rich grass green
+    const tr = 0.20 + n, tg = 0.40 + n * 0.6, tb = 0.14 + n * 0.5;
+    // barren (left/−x): warm sandy desert
+    const br = 0.58 + n, bg = 0.49 + n * 0.4, bb = 0.27 + n * 0.3;
+    gColors.push(tr * t + br * (1-t), tg * t + bg * (1-t), tb * t + bb * (1-t));
   }
   gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gColors, 3));
   const ground = new THREE.Mesh(gGeo, SHARED_MATERIALS.ground);
@@ -530,6 +655,37 @@ export function buildMap(scene, map) {
     );
     head.position.set(fx, 0.95, fz);
     scene.add(head);
+  }
+
+  // ── Manhole grates (decorative, on road surface) ──────────────────────────
+  const grateMat    = new THREE.MeshStandardMaterial({ color: 0x252a2e, roughness: 0.86, metalness: 0.55 });
+  const grateRimMat = new THREE.MeshStandardMaterial({ color: 0x3c4248, roughness: 0.80, metalness: 0.42 });
+  for (const [gx, gz] of [
+    [ 1.2, 26], [-1.0, 36], [ 0.7, 48], [-0.9, 59], [ 1.1, 70],
+    [ 1.2,-26], [-1.0,-36], [ 0.7,-48], [-0.9,-59], [ 1.1,-70],
+  ]) {
+    const rim  = new THREE.Mesh(new THREE.CylinderGeometry(0.73, 0.73, 0.055, 14), grateRimMat);
+    rim.position.set(gx, 0.115, gz);
+    scene.add(rim);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.60, 0.60, 0.040, 14), grateMat);
+    disc.position.set(gx, 0.130, gz);
+    scene.add(disc);
+  }
+
+  // ── Crater ground disc + scorch ring (visual, barren zone SW) ─────────────
+  {
+    const craterMat = new THREE.MeshStandardMaterial({ color: 0x26190e, roughness: 0.98, metalness: 0.0 });
+    const craterDisc = new THREE.Mesh(new THREE.CircleGeometry(28, 36), craterMat);
+    craterDisc.rotation.x = -Math.PI / 2;
+    craterDisc.position.set(-215, 0.04, -210);
+    scene.add(craterDisc);
+    const scorchMat = new THREE.MeshStandardMaterial({
+      color: 0x3a2510, roughness: 0.97, metalness: 0.0, transparent: true, opacity: 0.70,
+    });
+    const scorchRing = new THREE.Mesh(new THREE.RingGeometry(28, 42, 36), scorchMat);
+    scorchRing.rotation.x = -Math.PI / 2;
+    scorchRing.position.set(-215, 0.04, -210);
+    scene.add(scorchRing);
   }
 
   // ── Lamp glow halos ───────────────────────────────────────────────────────

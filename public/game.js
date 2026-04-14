@@ -141,6 +141,11 @@ function connectWS() {
   ws.addEventListener('message', _onWSMessage);
   ws.addEventListener('close', _onWSClose);
 }
+
+function safeSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN)
+    ws.send(JSON.stringify(obj));
+}
 connectWS();
 
 // ─── THREE.JS ─────────────────────────────────────────────────────────────────
@@ -223,7 +228,7 @@ function playTone(delay, type, gainVal, duration, startFreq, endFreq) {
 function setCrouch(state) {
   if (isCrouching === state) return;
   isCrouching = state;
-  ws.send(JSON.stringify({ type: 'crouch', state }));
+  safeSend({ type: 'crouch', state });
   if (!state) lastMoveTime = performance.now();
 }
 
@@ -233,10 +238,10 @@ let lastInputSent = 0;
 
 // ─── THREE.JS INIT ────────────────────────────────────────────────────────────
 function initScene() {
-  const SKY = 0xc8a8d8; // pink-lavender
+  const SKY = 0x4a85c0; // realistic sky blue
   scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY);
-  // fog removed
+  scene.fog = new THREE.FogExp2(0x7ab0d0, 0.00055); // atmospheric depth haze
 
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 1800);
 
@@ -246,25 +251,29 @@ function initScene() {
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  // Sky / ground hemisphere — pink sky, green bounce
-  const hemi = new THREE.HemisphereLight(0xf0c0f8, 0x386018, 1.4);
+  // Sky / ground hemisphere — daylight blue sky, natural ground bounce
+  const hemi = new THREE.HemisphereLight(0xadd0e8, 0x3a5820, 0.9);
   scene.add(hemi);
 
-  // Main sun — warm slightly golden, from upper-left
-  const sun = new THREE.DirectionalLight(0xffe8c8, 2.2);
-  sun.position.set(-35, 60, -30);
+  // Main sun — high afternoon angle, natural white
+  const sun = new THREE.DirectionalLight(0xfff5e8, 2.0);
+  sun.position.set(80, 120, -60);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0002;
   sun.shadow.camera.near  = 0.5;
   sun.shadow.camera.far   = 840;
   sun.shadow.camera.left  = sun.shadow.camera.bottom = -435;
   sun.shadow.camera.right = sun.shadow.camera.top    =  435;
   scene.add(sun);
 
-  // Soft blue rim from opposite side
-  const rim = new THREE.DirectionalLight(0xaaddff, 0.4);
-  rim.position.set(50, 20, 50);
+  // Soft blue fill from opposite side
+  const rim = new THREE.DirectionalLight(0x88b4d8, 0.3);
+  rim.position.set(-60, 40, 60);
   scene.add(rim);
 
   // Boreas — large purple planet visible in sky (fog-immune)
@@ -888,14 +897,14 @@ function renderLoop() {
 
     // Send input at 30 Hz
     if (now - lastInputSent > 33) {
-      ws.send(JSON.stringify({
+      safeSend({
         type:    'input',
         forward: keys.w, back: keys.s, left: keys.a, right: keys.d,
         run:     running,
         yaw:     localYaw,
         pitch:   localPitch,
         dt:      Math.min(dt * 2, 0.08),
-      }));
+      });
       lastInputSent = now;
     }
 
@@ -1370,7 +1379,7 @@ function closeChat() {
 
 function sendChat() {
   const text = document.getElementById('chatInput').value.trim();
-  if (text) ws.send(JSON.stringify({ type: 'chat', text }));
+  if (text) safeSend({ type: 'chat', text });
   closeChat();
 }
 
@@ -1538,11 +1547,11 @@ document.addEventListener('keydown', e => {
   if (k === 's') keys.s = true;
   if (k === 'd') keys.d = true;
   // 'r' does nothing — energy weapon has no reload
-  if (k === 'e' && isLocked) { resumeAudio(); sndSuper(); ws.send(JSON.stringify({ type: 'super' })); }
-  if (k === 'r' && isLocked) { resumeAudio(); ws.send(JSON.stringify({ type: 'shield' })); }
+  if (k === 'e' && isLocked) { resumeAudio(); sndSuper(); safeSend({ type: 'super' }); }
+  if (k === 'r' && isLocked) { resumeAudio(); safeSend({ type: 'shield' }); }
   if (k === 'q' && isLocked) {
     resumeAudio();
-    ws.send(JSON.stringify({ type: 'classAbility' }));
+    safeSend({ type: 'classAbility' });
   }
   if (k === ' ' || k === 'spacebar') {
     e.preventDefault();
@@ -1572,16 +1581,16 @@ document.addEventListener('keyup', e => {
         const me = gameState?.players.find(p => p.id === myId);
         if (me && me.health > 20) {
           localVy = 44; localGrounded = false;
-          ws.send(JSON.stringify({ type: 'jump_super' }));
+          safeSend({ type: 'jump_super' });
           playTone(0, 'sine', 0.18, 0.28, 220, 880); // super jump sound
         } else {
           // Not enough HP — do a regular jump anyway
           localVy = 14; localGrounded = false;
-          ws.send(JSON.stringify({ type: 'jump' }));
+          safeSend({ type: 'jump' });
         }
       } else {
         localVy = 14; localGrounded = false;
-        ws.send(JSON.stringify({ type: 'jump' }));
+        safeSend({ type: 'jump' });
       }
     }
     spaceDownTime = 0;
@@ -1614,13 +1623,13 @@ document.addEventListener('mousedown', e => {
     for (let i = 0; i < shots; i++) {
       setTimeout(() => { sndShoot('single'); vmShootKick(); spawnBullet('single'); }, i * 60);
     }
-    ws.send(JSON.stringify({ type: 'chargedShoot', count: shots }));
+    safeSend({ type: 'chargedShoot', count: shots });
   } else {
     // Normal single shot
     sndShoot('single');
     vmShootKick();
     spawnBullet('single');
-    ws.send(JSON.stringify({ type: 'shoot' }));
+    safeSend({ type: 'shoot' });
   }
 });
 
