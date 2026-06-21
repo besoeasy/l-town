@@ -68,7 +68,7 @@ function randomSpawn() {
   return { ...MAP.spawns[Math.floor(Math.random() * MAP.spawns.length)] };
 }
 
-const VALID_CHARS = ['telepotu', 'chumantr', 'denja', 'mednix', 'tank', 'anchor'];
+const VALID_CHARS = ['telepotu', 'chumantr', 'denja', 'mednix', 'tank', 'anchor', 'surge', 'jinx', 'gambler', 'parasite', 'berserker'];
 
 function makePlayer(id, name, character = 'telepotu') {
   const s = randomSpawn();
@@ -215,6 +215,18 @@ function applyDamage(targetId, dmg, shooterId) {
       shooterName: killer?.name ?? '?',
       targetName:  p.name,
     });
+    // ── JINX: death curse — punish the killer
+    if (p.character === 'jinx' && killer && killer.alive && killer.id !== p.id) {
+      const curseDmg = 80;
+      killer.health -= curseDmg;
+      killer.lastHitTime = Date.now();
+      if (killer.ws?.readyState === 1) killer.ws.send(JSON.stringify({ type: 'jinxCurse', amount: curseDmg, fromName: p.name }));
+      if (killer.health <= 0) {
+        killer.health = 0; killer.alive = false;
+        killer.respawnAt = Date.now() + CFG.RESPAWN_DELAY;
+        broadcast({ type: 'kill', shooterId: p.id, targetId: killer.id, shooterName: p.name + ' ☠️', targetName: killer.name });
+      }
+    }
   }
 }
 
@@ -229,7 +241,12 @@ function fireRay(player) {
   if (hit) {
     // Damage falloff: full damage up close, 25% minimum at max range (120 units)
     const distMult = Math.max(0.25, 1 - hit.t / 160);
-    applyDamage(hit.id, CFG.DMG_SINGLE * mult * distMult, player.id);
+    // Berserker: rage scales damage up to 2.5× as HP drops
+    const maxHp = player.character === 'tank' ? CFG.MAX_HEALTH * 2 : CFG.MAX_HEALTH;
+    const rageMult = player.character === 'berserker'
+      ? (1 + 1.5 * (1 - Math.max(0, player.health) / maxHp))
+      : 1;
+    applyDamage(hit.id, CFG.DMG_SINGLE * mult * distMult * rageMult, player.id);
   }
 }
 
@@ -355,6 +372,26 @@ setInterval(() => {
     // Tank: health permanently capped at double max
     if (p.character === 'tank' && p.health > CFG.MAX_HEALTH * 2)
       p.health = CFG.MAX_HEALTH * 2;
+    // Parasite: drain 3 HP/s from every player within 15 units
+    if (p.character === 'parasite' && p.alive) {
+      for (const [oid, other] of players) {
+        if (oid === p.id || !other.alive) continue;
+        const dx = other.x - p.x, dz = other.z - p.z;
+        if (Math.sqrt(dx * dx + dz * dz) < 15) {
+          const drain = 3 * dt;
+          other.health -= drain;
+          other.lastHitTime = now;
+          p.health = Math.min(p.health + drain, CFG.MAX_HEALTH);
+          if (other.health <= 0) {
+            other.health = 0; other.alive = false;
+            other.respawnAt = now + CFG.RESPAWN_DELAY;
+            p.score++;
+            p.health = Math.min(CFG.MAX_HEALTH, p.health + CFG.KILL_BONUS_HP);
+            broadcast({ type: 'kill', shooterId: p.id, targetId: oid, shooterName: p.name, targetName: other.name });
+          }
+        }
+      }
+    }
   }
 
   // Build full player data once per tick, then send a spatial subset to each player.
@@ -546,13 +583,19 @@ wss.on('connection', ws => {
                Math.abs(player.x - box.x) < box.w / 2 + CFG.PLAYER_RADIUS &&
                Math.abs(player.z - box.z) < box.d / 2 + CFG.PLAYER_RADIUS;
       });
-      const superMult = player.superActive ? 1.5 : 1;
-      const airMult   = inAir ? 1.2 : 1;
-      const denjaMult = player.character === 'denja' ? 2   : 1;
-      const tankMult  = player.character === 'tank'  ? 0.5 : 1;
+      const superMult    = player.superActive ? 1.5 : 1;
+      const airMult      = inAir ? 1.2 : 1;
+      const denjaMult    = player.character === 'denja'     ? 2   : 1;
+      const tankMult     = player.character === 'tank'      ? 0.5 : 1;
+      const parasiteMult = player.character === 'parasite'  ? 0.8 : 1;
+      // Berserker: speed scales from 1× (full HP) up to 2.5× (near death)
+      const bMaxHp    = player.character === 'tank' ? CFG.MAX_HEALTH * 2 : CFG.MAX_HEALTH;
+      const berserkMult = player.character === 'berserker'
+        ? (1 + 1.5 * (1 - Math.max(0, player.health) / bMaxHp))
+        : 1;
       const speed = (player.crouching ? CFG.CROUCH_SPEED
                   : msg.run          ? CFG.RUN_SPEED
-                  : CFG.PLAYER_SPEED) * superMult * airMult * denjaMult * tankMult;
+                  : CFG.PLAYER_SPEED) * superMult * airMult * denjaMult * tankMult * parasiteMult * berserkMult;
       if (len > 0) {
         mx = (mx / len) * speed * dt;
         mz = (mz / len) * speed * dt;
@@ -674,8 +717,53 @@ wss.on('connection', ws => {
         player.lastAbilityAt = _now;
         const restore = Math.floor(Math.random() * 50) + 1;
         player.health = Math.min(player.health + restore, CFG.MAX_HEALTH);
+      } else if (player.character === 'surge') {
+        if (_now - player.lastAbilityAt < 25000) return;
+        // Find nearest alive enemy within 40 units
+        let nearest = null, nearestDist = Infinity;
+        for (const [id, p] of players) {
+          if (id === player.id || !p.alive) continue;
+          const dx = p.x - player.x, dz = p.z - player.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < 40 && dist < nearestDist) { nearest = p; nearestDist = dist; }
+        }
+        if (!nearest) return; // no target in range — don't consume cooldown
+        player.lastAbilityAt = _now;
+        const drain = Math.min(30, nearest.health - 1); // never kill with drain
+        nearest.health -= drain;
+        nearest.lastHitTime = _now;
+        player.health = Math.min(player.health + drain, CFG.MAX_HEALTH);
+        // Notify drained enemy
+        if (nearest.ws?.readyState === 1)
+          nearest.ws.send(JSON.stringify({ type: 'hit' }));
+        // Notify surge player of drain amount
+        if (player.ws?.readyState === 1)
+          player.ws.send(JSON.stringify({ type: 'surgeDrain', amount: drain, targetName: nearest.name }));
+      } else if (player.character === 'gambler') {
+        if (_now - player.lastAbilityAt < 45000) return;
+        player.lastAbilityAt = _now;
+        const roll = Math.random();
+        if (roll < 0.333) {
+          // Lucky: +200 HP
+          player.health = Math.min(player.health + 200, CFG.MAX_HEALTH);
+          if (player.ws?.readyState === 1) player.ws.send(JSON.stringify({ type: 'gamblerResult', result: 'heal', amount: 200 }));
+        } else if (roll < 0.666) {
+          // Wild: teleport onto a random enemy
+          const alive = [...players.values()].filter(p => p.alive && p.id !== player.id);
+          if (alive.length > 0) {
+            const target = alive[Math.floor(Math.random() * alive.length)];
+            player.x = target.x; player.y = target.y; player.z = target.z;
+            if (player.ws?.readyState === 1) player.ws.send(JSON.stringify({ type: 'gamblerResult', result: 'teleport', x: player.x, y: player.y, z: player.z, targetName: target.name }));
+          }
+        } else {
+          // Doom: instant death — no kill credit awarded
+          player.health = 0; player.alive = false;
+          player.respawnAt = _now + CFG.RESPAWN_DELAY;
+          if (player.ws?.readyState === 1) player.ws.send(JSON.stringify({ type: 'gamblerResult', result: 'death' }));
+          broadcast({ type: 'kill', shooterId: player.id, targetId: player.id, shooterName: '🎲 GAMBLE', targetName: player.name });
+        }
       }
-      // denja, tank, and anchor have passive abilities — no active effect
+      // denja, tank, anchor, jinx, parasite, berserker have passive abilities — no active Q effect
       return;
     }
 

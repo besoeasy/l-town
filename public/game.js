@@ -1371,12 +1371,12 @@ function updateHUD() {
 
   // Class ability HUD
   const char = me.character ?? localCharacter;
-  const CHAR_LABEL = { telepotu: '⚡ WARP', chumantr: '👻 CLOAK', denja: '🔥 2× SPEED', mednix: '💊 SURGE', tank: '🛡 PASSIVE', anchor: '⚓ IMMUNITY' };
-  const CHAR_CD = { telepotu: 60000, chumantr: 30000, denja: -1, mednix: 20000, tank: -1, anchor: -1 };
+  const CHAR_LABEL = { telepotu: '⚡ WARP', chumantr: '👻 CLOAK', denja: '🔥 2× SPEED', mednix: '💊 SURGE', tank: '🛡 PASSIVE', anchor: '⚓ IMMUNITY', surge: '🌀 DRAIN', jinx: '💀 CURSE', gambler: '🎲 ALL IN', parasite: '🧫 DRAIN AURA', berserker: '🔴 RAGE' };
+  const CHAR_CD = { telepotu: 60000, chumantr: 30000, denja: -1, mednix: 20000, tank: -1, anchor: -1, surge: 25000, jinx: -1, gambler: 45000, parasite: -1, berserker: -1 };
   const cd = CHAR_CD[char] ?? 30000;
 
   if (HUD.classIcon && HUD.className && HUD.classCD && HUD.classFill) {
-    HUD.classIcon.textContent = { denja:'🔥', chumantr:'👻', mednix:'💊', tank:'🛡', anchor:'⚓' }[char] ?? '⚡';
+    HUD.classIcon.textContent = { denja:'🔥', chumantr:'👻', mednix:'💊', tank:'🛡', anchor:'⚓', surge:'🌀', jinx:'💀', gambler:'🎲', parasite:'🧫', berserker:'🔴' }[char] ?? '⚡';
     HUD.className.textContent = `[Q] ${CHAR_LABEL[char] ?? char.toUpperCase()}`;
     if (cd < 0) {
       HUD.classCD.textContent = 'PASSIVE';
@@ -1563,6 +1563,44 @@ function _onWSMessage(e) {
     const _kdist = _kt ? Math.round(Math.sqrt((_kt.x - localPos.x) ** 2 + (_kt.z - localPos.z) ** 2)) : null;
     const _dtag  = _kdist !== null ? ` · ${_kdist}m` : '';
     addKillFeed(`${msg.shooterName} ☠ ${msg.targetName}${_dtag}${mine ? '  +100hp' : ''}`, mine);
+    return;
+  }
+
+  if (msg.type === 'surgeDrain') {
+    addKillFeed(`🌀 Drained ${msg.amount} HP from ${msg.targetName}`, true);
+    // Brief teal flash to signal successful drain
+    const flash = document.getElementById('hitFlash');
+    flash.style.background = 'rgba(0,220,180,0.28)';
+    flash.classList.add('show');
+    setTimeout(() => { flash.classList.remove('show'); flash.style.background = ''; }, 200);
+    return;
+  }
+
+  if (msg.type === 'gamblerResult') {
+    if (msg.result === 'heal') {
+      addKillFeed('🎲 LUCKY! +200 HP', true);
+      const flash = document.getElementById('hitFlash');
+      flash.style.background = 'rgba(80,255,120,0.35)';
+      flash.classList.add('show');
+      setTimeout(() => { flash.classList.remove('show'); flash.style.background = ''; }, 300);
+    } else if (msg.result === 'teleport') {
+      localPos.x = msg.x; localPos.y = msg.y; localPos.z = msg.z;
+      addKillFeed(`🎲 WILD! Landed on ${msg.targetName}`, true);
+      const tf = document.getElementById('teleportFlash');
+      tf.classList.add('show');
+      setTimeout(() => tf.classList.remove('show'), 180);
+    } else if (msg.result === 'death') {
+      addKillFeed('🎲 DOOM. You gambled and lost.', true);
+    }
+    return;
+  }
+
+  if (msg.type === 'jinxCurse') {
+    addKillFeed(`💀 CURSED by ${msg.fromName} −${msg.amount} HP`, true);
+    const flash = document.getElementById('hitFlash');
+    flash.style.background = 'rgba(160,0,200,0.4)';
+    flash.classList.add('show');
+    setTimeout(() => { flash.classList.remove('show'); flash.style.background = ''; }, 400);
     return;
   }
 

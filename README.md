@@ -49,6 +49,11 @@ Share `http://<your-local-ip>:30300` with anyone on the same network.
 | 💊 Mednix | Restore 1–50 HP (20s) |
 | 🛡 Tank | Passive: 2× HP, half speed |
 | ⚓ Anchor | Passive: SUPER and SHIELD cost 50% less HP |
+| 🌀 Surge | Drain 30 HP from the nearest enemy within 40 units (25s) |
+| 💀 Jinx | Passive: Death Curse — killer loses 80 HP when you die |
+| 🎲 Gambler | Roll the dice: +200 HP · land on enemy · instant death (45s) |
+| 🧫 Parasite | Passive: Drain 3 HP/s from every enemy within 15 units |
+| 🔴 Berserker | Passive: Speed and damage scale up to 2.5× as HP drops |
 
 ## License
 
