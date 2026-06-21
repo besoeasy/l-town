@@ -298,9 +298,9 @@ setInterval(() => {
         const s = randomSpawn();
         Object.assign(p, {
           x: s.x, y: s.y, z: s.z,
-          health: p.character === 'denja' ? CFG.MAX_HEALTH / 2
-               : p.character === 'tank'  ? CFG.MAX_HEALTH * 2
-               : CFG.MAX_HEALTH,
+          health: p.character === 'denja' ? Math.floor(CFG.MAX_HEALTH / 2 * 0.75)
+               : p.character === 'tank'  ? Math.floor(CFG.MAX_HEALTH * 2 * 0.75)
+               : Math.floor(CFG.MAX_HEALTH * 0.75),
           superActive: false, superEnd: 0,
           shieldActive: false, shieldEnd: 0,
           invisible: false, invisibleEnd: 0,
