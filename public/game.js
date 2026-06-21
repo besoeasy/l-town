@@ -313,115 +313,258 @@ const COLORS = [0x74f0c6, 0xff5a5f, 0xf6bb42, 0x59b8ff, 0xd97ee3,
 function getPlayerColor(id) { return COLORS[(id - 1) % COLORS.length]; }
 
 function buildHumanoid(color) {
-  const group   = new THREE.Group();
-  const mat     = new THREE.MeshStandardMaterial({ color, metalness: 0.6, roughness: 0.4 });
-  const dark    = new THREE.MeshStandardMaterial({ color: 0x0d1520, metalness: 0.6, roughness: 0.4 });
-  const plating = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.6, roughness: 0.4 });
-  const visor   = new THREE.MeshStandardMaterial({ color: 0x59b8ff, emissive: new THREE.Color(0x1a4466), emissiveIntensity: 3, metalness: 0.6, roughness: 0.4 });
-  const accent  = new THREE.MeshStandardMaterial({ color: 0x00ccff, emissive: new THREE.Color(0x004466), emissiveIntensity: 2, metalness: 0.6, roughness: 0.4 });
+  const group = new THREE.Group();
 
-  function box(w, h, d, ox, oy, oz, m) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? mat);
+  // ── Material palette ────────────────────────────────────────────────────
+  const matColor  = new THREE.MeshStandardMaterial({ color, metalness: 0.7, roughness: 0.3 });
+  const matArmor  = new THREE.MeshStandardMaterial({ color: 0x1c2b3a, metalness: 0.8, roughness: 0.25 });
+  const matDark   = new THREE.MeshStandardMaterial({ color: 0x090e14, metalness: 0.9, roughness: 0.2 });
+  const matMid    = new THREE.MeshStandardMaterial({ color: 0x243040, metalness: 0.75, roughness: 0.3 });
+  const matVisor  = new THREE.MeshStandardMaterial({
+    color: 0x66ddff, emissive: new THREE.Color(0x0077aa),
+    emissiveIntensity: 4, metalness: 0.1, roughness: 0.05,
+    transparent: true, opacity: 0.92,
+  });
+  const matGlow   = new THREE.MeshStandardMaterial({
+    color, emissive: new THREE.Color(color),
+    emissiveIntensity: 2.5, metalness: 0.4, roughness: 0.2,
+  });
+  const matReactor = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: new THREE.Color(color),
+    emissiveIntensity: 5, metalness: 0.0, roughness: 0.0,
+    transparent: true, opacity: 0.95,
+  });
+
+  function box(w, h, d, ox, oy, oz, m, rx = 0, ry = 0, rz = 0) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? matArmor);
     mesh.position.set(ox, oy, oz);
+    mesh.rotation.set(rx, ry, rz);
     mesh.castShadow = true;
     group.add(mesh);
     return mesh;
   }
 
-  // ── Legs ────────────────────────────────────────────────────────────────
-  const legL = box(0.19, 0.50, 0.19, -0.14, 0.27, 0);
-  const legR = box(0.19, 0.50, 0.19,  0.14, 0.27, 0);
-  group.userData.legL = legL;
-  group.userData.legR = legR;
-  // Knee guards
-  box(0.21, 0.08, 0.22, -0.14, 0.38, -0.01, plating);
-  box(0.21, 0.08, 0.22,  0.14, 0.38, -0.01, plating);
-  // Foot blocks
-  box(0.20, 0.08, 0.26, -0.14, 0.04,  0.02, dark);
-  box(0.20, 0.08, 0.26,  0.14, 0.04,  0.02, dark);
-  // Shin stripe glow
-  box(0.04, 0.18, 0.03, -0.14, 0.17, -0.10, accent);
-  box(0.04, 0.18, 0.03,  0.14, 0.17, -0.10, accent);
-
-  // ── Pelvis / waist ──────────────────────────────────────────────────────
-  box(0.44, 0.14, 0.24, 0, 0.57, 0, plating);
-  // Belt stripe
-  box(0.44, 0.04, 0.26, 0, 0.575, 0, dark);
-
-  // ── Torso ───────────────────────────────────────────────────────────────
-  box(0.52, 0.52, 0.24, 0, 0.89, 0, plating);
-  // Chest plate (front)
-  box(0.34, 0.34, 0.04, 0, 0.92, -0.14, mat);
-  // Central chest energy line
-  box(0.05, 0.28, 0.05, 0, 0.92, -0.165, accent);
-  // Back plate
-  box(0.40, 0.38, 0.04, 0, 0.91,  0.14, plating);
-  // Side ribs
-  for (let i = 0; i < 3; i++) {
-    const ry = 0.76 + i * 0.12;
-    box(0.03, 0.04, 0.26, -0.27, ry, 0, dark);
-    box(0.03, 0.04, 0.26,  0.27, ry, 0, dark);
+  function cyl(rt, rb, h, ox, oy, oz, m, segs = 8, rx = 0, ry = 0, rz = 0) {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segs), m ?? matArmor);
+    mesh.position.set(ox, oy, oz);
+    mesh.rotation.set(rx, ry, rz);
+    mesh.castShadow = true;
+    group.add(mesh);
+    return mesh;
   }
 
-  // ── Shoulder pads ───────────────────────────────────────────────────────
-  box(0.18, 0.14, 0.28, -0.37, 1.10, 0, mat);
-  box(0.18, 0.14, 0.28,  0.37, 1.10, 0, mat);
-  box(0.22, 0.07, 0.30, -0.37, 1.18, 0, plating);
-  box(0.22, 0.07, 0.30,  0.37, 1.18, 0, plating);
+  // ── FEET / BOOTS ────────────────────────────────────────────────────────
+  // Sole platform (flat wide)
+  box(0.22, 0.05, 0.32, -0.145, 0.025,  0.02, matDark);
+  box(0.22, 0.05, 0.32,  0.145, 0.025,  0.02, matDark);
+  // Boot ankle box
+  box(0.20, 0.16, 0.22, -0.145, 0.10,  0.00, matArmor);
+  box(0.20, 0.16, 0.22,  0.145, 0.10,  0.00, matArmor);
+  // Boot toe cap (color)
+  box(0.18, 0.09, 0.08, -0.145, 0.065, -0.12, matColor);
+  box(0.18, 0.09, 0.08,  0.145, 0.065, -0.12, matColor);
+  // Heel spike
+  box(0.06, 0.08, 0.04, -0.145, 0.055,  0.14, matDark);
+  box(0.06, 0.08, 0.04,  0.145, 0.055,  0.14, matDark);
 
-  // ── Arms ────────────────────────────────────────────────────────────────
-  const armL = box(0.15, 0.46, 0.15, -0.37, 0.84, 0, plating);
-  const armR = box(0.15, 0.46, 0.15,  0.37, 0.84, 0, plating);
+  // ── LOWER LEGS (shin) ───────────────────────────────────────────────────
+  // Main shin cylinder — sleek
+  const legL = cyl(0.085, 0.095, 0.42, -0.145, 0.385, 0, matArmor, 8);
+  const legR = cyl(0.085, 0.095, 0.42,  0.145, 0.385, 0, matArmor, 8);
+  group.userData.legL = legL;
+  group.userData.legR = legR;
+  // Shin front plate (color)
+  box(0.11, 0.24, 0.04, -0.145, 0.37, -0.09, matColor);
+  box(0.11, 0.24, 0.04,  0.145, 0.37, -0.09, matColor);
+  // Shin glow strip
+  box(0.03, 0.16, 0.02, -0.145, 0.34, -0.115, matGlow);
+  box(0.03, 0.16, 0.02,  0.145, 0.34, -0.115, matGlow);
+  // Calf fin pair
+  box(0.02, 0.14, 0.10, -0.205, 0.33,  0.07, matMid, 0, 0, 0.18);
+  box(0.02, 0.14, 0.10,  0.205, 0.33,  0.07, matMid, 0, 0,-0.18);
+
+  // ── KNEES ───────────────────────────────────────────────────────────────
+  cyl(0.11, 0.11, 0.08, -0.145, 0.595, 0, matMid, 10);
+  cyl(0.11, 0.11, 0.08,  0.145, 0.595, 0, matMid, 10);
+  // Knee cap (color plate)
+  box(0.13, 0.07, 0.06, -0.145, 0.60, -0.08, matColor);
+  box(0.13, 0.07, 0.06,  0.145, 0.60, -0.08, matColor);
+
+  // ── THIGHS ──────────────────────────────────────────────────────────────
+  cyl(0.105, 0.09, 0.35, -0.145, 0.82, 0, matArmor, 8);
+  cyl(0.105, 0.09, 0.35,  0.145, 0.82, 0, matArmor, 8);
+  // Thigh front armor plate (angled, color)
+  box(0.14, 0.22, 0.05, -0.145, 0.83, -0.10, matColor, -0.12, 0, 0);
+  box(0.14, 0.22, 0.05,  0.145, 0.83, -0.10, matColor, -0.12, 0, 0);
+  // Outer thigh pad
+  box(0.04, 0.18, 0.14, -0.235, 0.83,  0.00, matMid);
+  box(0.04, 0.18, 0.14,  0.235, 0.83,  0.00, matMid);
+
+  // ── PELVIS / GROIN ──────────────────────────────────────────────────────
+  box(0.42, 0.12, 0.22, 0, 0.995, 0, matMid);
+  // Center belt buckle (glow)
+  box(0.08, 0.07, 0.06, 0, 0.995, -0.12, matGlow);
+  // Hip side pods
+  box(0.06, 0.10, 0.18, -0.24, 0.995, 0, matDark);
+  box(0.06, 0.10, 0.18,  0.24, 0.995, 0, matDark);
+
+  // ── TORSO ───────────────────────────────────────────────────────────────
+  // Main torso — tapered (wider at shoulders, narrower at waist)
+  cyl(0.255, 0.22, 0.56, 0, 1.31, 0, matArmor, 8);
+  // Front chest plate (color)
+  box(0.38, 0.42, 0.05, 0, 1.32, -0.21, matColor);
+  // Chest plate inner recess
+  box(0.26, 0.28, 0.04, 0, 1.34, -0.235, matDark);
+  // Arc reactor ring (torus glow)
+  const reactorGeo = new THREE.TorusGeometry(0.065, 0.018, 8, 24);
+  const reactor = new THREE.Mesh(reactorGeo, matReactor);
+  reactor.position.set(0, 1.38, -0.252);
+  reactor.rotation.x = Math.PI / 2;
+  reactor.castShadow = false;
+  group.add(reactor);
+  group.userData.reactor = reactor;
+  // Reactor center dot
+  const rdot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), matReactor);
+  rdot.position.set(0, 1.38, -0.262);
+  group.add(rdot);
+  // Chest vertical energy line (glow)
+  box(0.025, 0.22, 0.025, 0, 1.38, -0.248, matGlow);
+  // Back plate
+  box(0.40, 0.42, 0.05, 0, 1.31, 0.215, matMid);
+  // Back vent slats (3 horizontal slats)
+  for (let i = 0; i < 3; i++) {
+    box(0.30, 0.025, 0.04, 0, 1.18 + i * 0.10, 0.242, matDark);
+  }
+  // Side torso detail strips
+  box(0.025, 0.36, 0.24, -0.258, 1.30, 0, matGlow);
+  box(0.025, 0.36, 0.24,  0.258, 1.30, 0, matGlow);
+
+  // ── SHOULDER PAULDRONS ──────────────────────────────────────────────────
+  // Main pad (color) — wider, swept
+  cyl(0.115, 0.10, 0.18, -0.40, 1.50, 0, matColor, 8);
+  cyl(0.115, 0.10, 0.18,  0.40, 1.50, 0, matColor, 8);
+  // Top dome cap
+  cyl(0.115, 0.115, 0.04, -0.40, 1.60, 0, matArmor, 8);
+  cyl(0.115, 0.115, 0.04,  0.40, 1.60, 0, matArmor, 8);
+  // Forward swept fin
+  box(0.04, 0.10, 0.18, -0.415, 1.56, -0.10, matMid, -0.3, 0, 0);
+  box(0.04, 0.10, 0.18,  0.415, 1.56, -0.10, matMid, -0.3, 0, 0);
+  // Shoulder glow ring
+  const sRingGeo = new THREE.TorusGeometry(0.095, 0.012, 6, 20);
+  const sRingL = new THREE.Mesh(sRingGeo, matGlow);
+  sRingL.position.set(-0.40, 1.505, 0);
+  group.add(sRingL);
+  const sRingR = new THREE.Mesh(sRingGeo, matGlow);
+  sRingR.position.set( 0.40, 1.505, 0);
+  group.add(sRingR);
+
+  // ── UPPER ARMS ──────────────────────────────────────────────────────────
+  const armL = cyl(0.085, 0.075, 0.38, -0.40, 1.22, 0, matArmor, 8);
+  const armR = cyl(0.085, 0.075, 0.38,  0.40, 1.22, 0, matArmor, 8);
   group.userData.armL = armL;
   group.userData.armR = armR;
-  // Elbow joints
-  box(0.17, 0.09, 0.17, -0.37, 0.62, 0, dark);
-  box(0.17, 0.09, 0.17,  0.37, 0.62, 0, dark);
-  // Arm energy stripe
-  box(0.03, 0.28, 0.03, -0.37, 0.84, -0.08, accent);
-  box(0.03, 0.28, 0.03,  0.37, 0.84, -0.08, accent);
+  // Arm color stripe
+  box(0.025, 0.24, 0.025, -0.40, 1.22, -0.085, matGlow);
+  box(0.025, 0.24, 0.025,  0.40, 1.22, -0.085, matGlow);
 
-  // ── Right-arm cannon (third-person) ─────────────────────────────────────
+  // ── ELBOWS ──────────────────────────────────────────────────────────────
+  cyl(0.085, 0.085, 0.06, -0.40, 1.035, 0, matDark, 8);
+  cyl(0.085, 0.085, 0.06,  0.40, 1.035, 0, matDark, 8);
+  // Elbow spike (out-facing)
+  box(0.12, 0.05, 0.05, -0.44, 1.035, 0.0, matMid);
+  box(0.12, 0.05, 0.05,  0.44, 1.035, 0.0, matMid);
+
+  // ── FOREARMS ────────────────────────────────────────────────────────────
+  cyl(0.075, 0.065, 0.30, -0.40, 0.855, 0, matMid, 8);
+  cyl(0.075, 0.065, 0.30,  0.40, 0.855, 0, matMid, 8);
+
+  // ── RIGHT-ARM CANNON (third-person) ─────────────────────────────────────
   const armGroup = new THREE.Group();
-  armGroup.position.set(0.37, 0.62, -0.16);
-  // Forearm cannon housing
-  const cannonBody = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.34), plating);
-  cannonBody.position.set(0, 0, -0.10);
+  armGroup.position.set(0.40, 0.72, -0.12);
+
+  // Cannon housing — octagonal barrel
+  const cannonBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.40, 8), matDark);
+  cannonBody.rotation.x = Math.PI / 2;
+  cannonBody.position.set(0, 0, -0.12);
   armGroup.add(cannonBody);
-  // Cannon barrel
-  const cannonBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), dark);
-  cannonBarrel.position.set(0, -0.01, -0.29);
-  armGroup.add(cannonBarrel);
-  // Palm glow port
-  const port = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), accent);
-  port.position.set(0, -0.01, -0.365);
-  armGroup.add(port);
-  // Energy stripe on cannon
-  const cStripe = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.012, 0.28), accent);
-  cStripe.position.set(0, 0.072, -0.10);
-  armGroup.add(cStripe);
+  // Muzzle ring (color)
+  const muzzleRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.01, 6, 16), matGlow);
+  muzzleRing.position.set(0, 0, -0.33);
+  armGroup.add(muzzleRing);
+  // Top rail
+  const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.36), matMid);
+  topRail.position.set(0, 0.07, -0.12);
+  armGroup.add(topRail);
+  // Side fin on cannon
+  const cannFin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.025, 0.18), matMid);
+  cannFin.position.set(0, 0, -0.08);
+  armGroup.add(cannFin);
+  // Energy cell glow (color)
+  const cellGeo = new THREE.BoxGeometry(0.03, 0.07, 0.07);
+  const cell = new THREE.Mesh(cellGeo, matGlow);
+  cell.position.set(-0.065, 0, -0.05);
+  armGroup.add(cell);
+
   group.add(armGroup);
   group.userData.gunGroup = armGroup;
 
-  // ── Neck ────────────────────────────────────────────────────────────────
-  box(0.16, 0.13, 0.16, 0, 1.20, 0, dark);
+  // ── NECK ────────────────────────────────────────────────────────────────
+  cyl(0.075, 0.085, 0.12, 0, 1.69, 0, matDark, 8);
 
-  // ── Head ────────────────────────────────────────────────────────────────
-  box(0.42, 0.40, 0.40, 0, 1.47, 0, plating);
-  // Face plate
-  box(0.38, 0.36, 0.04, 0, 1.47, -0.22, mat);
-  // Visor (wide glowing band)
-  const vis = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.11, 0.06), visor);
-  vis.position.set(0, 1.50, -0.25);
+  // ── HEAD / HELMET ───────────────────────────────────────────────────────
+  // Base skull — rounded octagon cylinder
+  cyl(0.195, 0.205, 0.36, 0, 1.89, 0, matArmor, 8);
+  // Dome top — sphere cap
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.198, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), matArmor);
+  dome.position.set(0, 2.07, 0);
+  dome.castShadow = true;
+  group.add(dome);
+  // Forehead plate (color)
+  box(0.28, 0.12, 0.04, 0, 1.985, -0.20, matColor);
+  // Face recess (dark)
+  box(0.24, 0.20, 0.04, 0, 1.88, -0.22, matDark);
+  // Visor — wide glowing tri-lens band
+  const visGeo = new THREE.BoxGeometry(0.28, 0.09, 0.07);
+  const vis = new THREE.Mesh(visGeo, matVisor);
+  vis.position.set(0, 1.92, -0.225);
   vis.castShadow = false;
   group.add(vis);
-  // Visor side indicators
-  box(0.03, 0.06, 0.04, -0.22, 1.50, -0.23, accent);
-  box(0.03, 0.06, 0.04,  0.22, 1.50, -0.23, accent);
-  // Head top detail
-  box(0.20, 0.05, 0.20, 0, 1.695, 0, dark);
-  // Antenna
-  box(0.03, 0.14, 0.03, 0.14, 1.80, 0, dark);
+  group.userData.visorMesh = vis;
+  // Visor side flares
+  box(0.04, 0.06, 0.06, -0.170, 1.92, -0.215, matVisor);
+  box(0.04, 0.06, 0.06,  0.170, 1.92, -0.215, matVisor);
+  // Chin guard
+  box(0.22, 0.08, 0.05, 0, 1.78, -0.20, matMid);
+  // Chin glow slot
+  box(0.10, 0.025, 0.04, 0, 1.77, -0.22, matGlow);
+  // Side ear vents (3 horizontal slats each side)
+  for (let i = 0; i < 3; i++) {
+    box(0.025, 0.025, 0.10, -0.215, 1.83 + i * 0.055,  0.03, matDark);
+    box(0.025, 0.025, 0.10,  0.215, 1.83 + i * 0.055,  0.03, matDark);
+  }
+  // Rear head fin / mohawk (color)
+  box(0.04, 0.18, 0.10, 0, 2.09, 0.09, matColor, -0.25, 0, 0);
+  // Antenna (thin)
+  box(0.018, 0.18, 0.018, 0.13, 2.18, 0, matDark);
+  // Antenna tip (glow)
+  cyl(0.018, 0.012, 0.04, 0.13, 2.28, 0, matGlow, 6);
+
+  // ── BACKPACK / JETPACK ──────────────────────────────────────────────────
+  box(0.32, 0.30, 0.08, 0, 1.35, 0.26, matMid);
+  // Thruster nozzles (2)
+  cyl(0.04, 0.055, 0.12, -0.10, 1.20, 0.30, matDark, 8);
+  cyl(0.04, 0.055, 0.12,  0.10, 1.20, 0.30, matDark, 8);
+  // Thruster glow ring
+  const tRingL = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 16), matGlow);
+  tRingL.position.set(-0.10, 1.14, 0.29);
+  group.add(tRingL);
+  const tRingR = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 16), matGlow);
+  tRingR.position.set( 0.10, 1.14, 0.29);
+  group.add(tRingR);
+  // Fin spines (3 swept up)
+  box(0.025, 0.22, 0.08, -0.14, 1.48, 0.27, matColor, -0.3, 0, 0);
+  box(0.025, 0.22, 0.08,  0.00, 1.50, 0.27, matColor, -0.3, 0, 0);
+  box(0.025, 0.22, 0.08,  0.14, 1.48, 0.27, matColor, -0.3, 0, 0);
 
   return group;
 }
@@ -1027,9 +1170,15 @@ function renderLoop() {
 
       // Cannon recoil (game feel)
       if (mesh.userData.gunGroup) {
-        const recoilBaseZ = -0.16;
+        const recoilBaseZ = -0.12;
         const recoilAmount = Math.sin(now * 0.005 * 5) * 0.01;
         mesh.userData.gunGroup.position.z = recoilBaseZ + recoilAmount;
+      }
+
+      // Arc reactor pulse
+      if (mesh.userData.reactor) {
+        const reactorPulse = 4 + 2.5 * Math.sin(now * 0.0035);
+        mesh.userData.reactor.material.emissiveIntensity = reactorPulse;
       }
 
       // Target ring spin + visibility
