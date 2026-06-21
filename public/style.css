@@ -34,8 +34,8 @@ body {
 .lobby-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
   background: #060d16;
   z-index: 20;
   overflow: hidden;
@@ -64,18 +64,19 @@ body {
   z-index: 0;
 }
 
+/* ── Header (row 1) ── */
 .lobby-header {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 0 20px;
+  padding: 22px 0 10px;
   flex-shrink: 0;
 }
 
 .lobby-logo {
-  font-size: 3.2rem;
+  font-size: 2.6rem;
   line-height: 1;
   animation: logoPulse 2.4s ease-in-out infinite alternate;
   filter: drop-shadow(0 0 24px rgba(116,240,198,0.8)) drop-shadow(0 0 60px rgba(116,240,198,0.35));
@@ -88,41 +89,39 @@ body {
 
 .lobby-title {
   font-family: 'Rajdhani', 'Segoe UI', sans-serif;
-  font-size: clamp(2.6rem, 5vw, 4.2rem);
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
   font-weight: 700;
   letter-spacing: 0.35em;
   color: var(--ink);
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   text-transform: uppercase;
-  text-shadow:
-    0 0 40px rgba(116,240,198,0.5),
-    0 0 80px rgba(116,240,198,0.2);
   background: linear-gradient(180deg, #ffffff 30%, rgba(116,240,198,0.85) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-shadow: none;
 }
 
 .lobby-sub {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   letter-spacing: 0.1em;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   text-transform: uppercase;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 #githubBadge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 12px;
-  padding: 5px 14px;
+  margin-top: 10px;
+  padding: 4px 12px;
   border-radius: 20px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-decoration: none;
@@ -131,85 +130,51 @@ body {
   cursor: pointer;
 }
 
-#githubBadge svg {
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
+#githubBadge svg { flex-shrink: 0; opacity: 0.7; transition: opacity 0.2s; }
 #githubBadge:hover {
   background: rgba(116,240,198,0.1);
   border-color: rgba(116,240,198,0.4);
   color: var(--accent);
   transform: translateY(-1px);
 }
+#githubBadge:hover svg { opacity: 1; }
 
-#githubBadge:hover svg {
-  opacity: 1;
-}
-
-/* Character selection area */
-.lobby-char-section {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 40px 6px;
-  min-height: 0;
-}
-
-.lobby-section-label {
-  color: var(--accent);
-  font-size: 0.65rem;
-  letter-spacing: 0.4em;
-  text-transform: uppercase;
-  margin-bottom: 16px;
-  opacity: 0.6;
-}
-
-/* Join row */
+/* ── Join row (row 2) — name + button right under the title ── */
 .lobby-join {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 14px 40px 12px;
+  gap: 10px;
+  padding: 14px 40px 10px;
   flex-shrink: 0;
-  border-top: 1px solid rgba(116, 240, 198, 0.08);
-  background: rgba(6, 13, 22, 0.6);
-  backdrop-filter: blur(12px);
 }
 
 .lobby-join input {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   color: var(--ink);
   font: 600 15px/1 'Inter', 'Segoe UI', sans-serif;
-  padding: 13px 18px;
-  width: 280px;
+  padding: 12px 18px;
+  width: 240px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   letter-spacing: 0.04em;
 }
-
 .lobby-join input::placeholder { color: rgba(149,168,178,0.5); }
 .lobby-join input:focus {
   border-color: rgba(116,240,198,0.6);
-  box-shadow: 0 0 0 3px rgba(116,240,198,0.08), inset 0 0 20px rgba(116,240,198,0.03);
+  box-shadow: 0 0 0 3px rgba(116,240,198,0.08);
 }
 
 .lobby-join button {
   margin: 0;
   width: auto;
-  padding: 13px 40px;
+  padding: 12px 32px;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   border-radius: 12px;
@@ -220,44 +185,56 @@ body {
   position: relative;
   overflow: hidden;
   transition: opacity 0.15s, transform 0.12s, box-shadow 0.2s;
-  box-shadow: 0 4px 24px rgba(116,240,198,0.25), 0 0 0 0 rgba(116,240,198,0.4);
+  box-shadow: 0 4px 24px rgba(116,240,198,0.3);
   animation: btnGlow 2.5s ease-in-out infinite;
 }
-
 @keyframes btnGlow {
-  0%, 100% { box-shadow: 0 4px 24px rgba(116,240,198,0.25), 0 0 0 0 rgba(116,240,198,0); }
-  50%       { box-shadow: 0 6px 32px rgba(116,240,198,0.45), 0 0 20px 4px rgba(116,240,198,0.12); }
+  0%, 100% { box-shadow: 0 4px 24px rgba(116,240,198,0.25); }
+  50%       { box-shadow: 0 6px 32px rgba(116,240,198,0.5), 0 0 20px 4px rgba(116,240,198,0.14); }
 }
-
 .lobby-join button::before {
   content: '';
   position: absolute;
-  top: -50%;
-  left: -60%;
-  width: 40%;
-  height: 200%;
+  top: -50%; left: -60%;
+  width: 40%; height: 200%;
   background: rgba(255,255,255,0.18);
   transform: skewX(-20deg);
   animation: btnSheen 3s ease-in-out infinite;
 }
-
 @keyframes btnSheen {
-  0%   { left: -60%; }
+  0%       { left: -60%; }
   40%, 100% { left: 140%; }
 }
-
 .lobby-join button:hover {
   opacity: 0.92;
   transform: translateY(-2px);
-  box-shadow: 0 8px 36px rgba(116,240,198,0.4), 0 0 0 4px rgba(116,240,198,0.12);
+  box-shadow: 0 8px 36px rgba(116,240,198,0.4);
+}
+.lobby-join button:active { transform: translateY(0); opacity: 1; }
+
+/* ── Character selection area (row 3) ── */
+.lobby-char-section {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 32px 8px;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.lobby-join button:active {
-  transform: translateY(0px);
-  opacity: 1;
+.lobby-section-label {
+  color: var(--accent);
+  font-size: 0.62rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  opacity: 0.55;
+  flex-shrink: 0;
 }
 
-/* Controls footer */
+/* Controls footer (row 4) */
 .lobby-controls-bar {
   position: relative;
   z-index: 1;
@@ -266,13 +243,14 @@ body {
   justify-content: center;
   flex-wrap: wrap;
   gap: 0 8px;
-  padding: 7px 40px 12px;
+  padding: 6px 40px 10px;
   flex-shrink: 0;
   color: rgba(149, 168, 178, 0.35);
-  font-size: 0.66rem;
+  font-size: 0.63rem;
   letter-spacing: 0.06em;
-  background: rgba(6, 13, 22, 0.6);
+  background: rgba(6, 13, 22, 0.7);
   backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(116,240,198,0.06);
 }
 
 .ctl-sep { color: rgba(116, 240, 198, 0.2); }
@@ -1267,22 +1245,31 @@ canvas {
 
 /* ─── CHARACTER SELECT ──────────────────────────────────────────────────────── */
 .char-cards {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  grid-template-rows: repeat(2, 1fr);
+  gap: 10px;
   width: 100%;
-  max-width: 1300px;
+  max-width: 1400px;
   height: 100%;
-  max-height: 360px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  /* hide scrollbar on webkit */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(116,240,198,0.2) transparent;
 }
+.char-cards::-webkit-scrollbar { height: 4px; }
+.char-cards::-webkit-scrollbar-track { background: transparent; }
+.char-cards::-webkit-scrollbar-thumb { background: rgba(116,240,198,0.2); border-radius: 2px; }
 
 .char-card {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 20px;
-  padding: 20px 14px 16px;
+  border-radius: 16px;
+  padding: 14px 10px 12px;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.025);
   text-align: center;
@@ -1291,6 +1278,7 @@ canvas {
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(4px);
+  min-width: 0;
 }
 
 /* Gradient accent line at top of card */
@@ -1364,9 +1352,9 @@ canvas {
 }
 
 .char-icon {
-  font-size: 3.4rem;
+  font-size: 2.4rem;
   line-height: 1;
-  margin: 4px 0 12px;
+  margin: 2px 0 8px;
   filter: drop-shadow(0 0 10px rgba(116,240,198,0.2));
   transition: filter 0.22s, transform 0.22s;
 }
@@ -1384,11 +1372,11 @@ canvas {
 .char-name {
   font-family: 'Rajdhani', 'Segoe UI', sans-serif;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   color: var(--ink);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   transition: color 0.2s;
 }
 
@@ -1407,18 +1395,18 @@ canvas {
 }
 
 .char-ability {
-  font-size: 0.73rem;
+  font-size: 0.64rem;
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.5;
   flex: 1;
 }
 
 .char-stat-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 4px 10px;
-  margin-top: 14px;
+  grid-template-columns: 40px 1fr;
+  gap: 3px 8px;
+  margin-top: 10px;
   align-items: center;
 }
 
