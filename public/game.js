@@ -581,7 +581,7 @@ function getOrCreateMesh(id) {
   const tex  = new THREE.CanvasTexture(nc);
   const spriteMat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.position.y = 1.85;
+  sprite.position.y = 2.55;
   sprite.scale.set(2.0, 0.38, 1);
   group.userData.nameCvs = nc;
   group.userData.nameCtx = nctx;
@@ -593,20 +593,20 @@ function getOrCreateMesh(id) {
   const ringGeo = new THREE.TorusGeometry(0.55, 0.07, 8, 32);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.9 });
   const ring    = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.y = 2.4;
+  ring.position.y = 2.95;
   ring.rotation.x = Math.PI / 2;
   ring.visible    = false;
   group.userData.targetRing = ring;
   group.add(ring);
 
   // Shield bubble (hidden until shieldActive)
-  const shieldGeo = new THREE.SphereGeometry(1.1, 16, 12);
+  const shieldGeo = new THREE.SphereGeometry(1.35, 16, 12);
   const shieldMat = new THREE.MeshBasicMaterial({
     color: 0x44ccff, transparent: true, opacity: 0.22,
     depthWrite: false, side: THREE.DoubleSide,
   });
   const shieldBubble = new THREE.Mesh(shieldGeo, shieldMat);
-  shieldBubble.position.y = 1.0;
+  shieldBubble.position.y = 1.15;
   shieldBubble.visible = false;
   shieldBubble.renderOrder = 10;
   group.userData.shieldBubble = shieldBubble;

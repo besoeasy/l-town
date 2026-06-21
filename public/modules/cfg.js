@@ -6,9 +6,9 @@ export const CFG = {
   RUN_SPEED:         15,     // units/s while sprinting
   CROUCH_SPEED:       4,     // units/s while crouching
   PLAYER_RADIUS:    0.45,
-  PLAYER_HEIGHT:    1.8,
-  EYE_HEIGHT:       1.6,
-  CROUCH_EYE_HEIGHT: 0.7,
+  PLAYER_HEIGHT:    2.3,
+  EYE_HEIGHT:       1.95,
+  CROUCH_EYE_HEIGHT: 0.85,
   AUTO_CROUCH_MS:  10000,    // ms of no movement before auto-crouch
   MAX_HEALTH:       500,
   REGEN_DELAY:     2000,     // ms after last damage
