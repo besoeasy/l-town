@@ -150,7 +150,8 @@ connectWS();
 
 // ─── THREE.JS ─────────────────────────────────────────────────────────────────
 let scene, camera, renderer;
-const playerMeshes = new Map(); // id → THREE.Group
+const playerMeshes  = new Map(); // id → THREE.Group
+const playerPrevPos = new Map(); // id → {x,z} for movement detection
 
 // ─── POINTER LOCK & INPUT ─────────────────────────────────────────────────────
 let isLocked  = false;
@@ -591,6 +592,15 @@ function buildViewmodel() {
   cannonGlow.position.set(0, -0.012, -0.350);
   vmGunGroup.add(cannonGlow);
 
+  // ── Muzzle flash (shown on shoot, decays quickly) ──────────────────────────
+  const _flashMat = new THREE.MeshBasicMaterial({
+    color: 0x88ffff, transparent: true, opacity: 0, depthWrite: false,
+  });
+  const _flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.14), _flashMat);
+  _flashMesh.position.set(0, -0.012, -0.385);
+  vmGunGroup.add(_flashMesh);
+  vmGunGroup.userData.muzzleFlash = _flashMesh;
+
   vmScene.add(vmGunGroup);
 
   // ── Shield (shown when shieldActive) ──────────────────────────────────────
@@ -643,8 +653,16 @@ function ensureViewmodel() {
   });
 }
 
-// Trigger shoot kick
-function vmShootKick() { vmKick = 1.0; }
+// Trigger shoot kick + muzzle flash
+function vmShootKick() {
+  vmKick = 1.0;
+  const flash = vmGunGroup?.userData.muzzleFlash;
+  if (flash) {
+    flash.material.opacity = 1;
+    flash.scale.setScalar(0.65 + Math.random() * 0.7);
+    flash.rotation.z = Math.random() * Math.PI * 2;
+  }
+}
 
 // ─── ENERGY BULLET TRACERS ───────────────────────────────────────────────────
 const activeBullets = [];
@@ -680,12 +698,47 @@ function spawnBullet(mode) {
   activeBullets.push({ mesh, vel: _bDir.clone().multiplyScalar(speed), life });
 }
 
+// ─── BULLET IMPACT EFFECTS ───────────────────────────────────────────────────
+const activeImpacts = [];
+
+function spawnImpact(pos) {
+  if (!scene) return;
+  const geo = new THREE.RingGeometry(0.02, 0.15, 8);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00eeff, transparent: true, opacity: 0.95,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(pos);
+  if (camera) mesh.lookAt(camera.position);
+  scene.add(mesh);
+  activeImpacts.push({ mesh, life: 0.18, maxLife: 0.18 });
+}
+
+function updateImpacts(dt) {
+  for (let i = activeImpacts.length - 1; i >= 0; i--) {
+    const im = activeImpacts[i];
+    im.life -= dt;
+    if (im.life <= 0) {
+      scene.remove(im.mesh);
+      im.mesh.geometry.dispose();
+      im.mesh.material.dispose();
+      activeImpacts.splice(i, 1);
+    } else {
+      const t = 1 - im.life / im.maxLife;
+      im.mesh.material.opacity = 0.95 * (1 - t * t);
+      im.mesh.scale.setScalar(1 + t * 5);
+    }
+  }
+}
+
 function updateBullets(dt) {
   for (let i = activeBullets.length - 1; i >= 0; i--) {
     const b = activeBullets[i];
     b.mesh.position.addScaledVector(b.vel, dt);
     b.life -= dt;
     if (b.life <= 0) {
+      spawnImpact(b.mesh.position.clone());
       scene.remove(b.mesh);
       b.mesh.geometry.dispose();
       b.mesh.material.dispose();
@@ -722,6 +775,10 @@ function updateViewmodel(dt, moving, running, canFire = true, shielding = false)
 
     // Cell glow pulses when shooting
     vmCell.material.emissiveIntensity = 0.3 + vmKick * 1.5;
+
+    // Decay muzzle flash
+    const _mf = vmGunGroup.userData.muzzleFlash;
+    if (_mf) _mf.material.opacity = Math.max(0, _mf.material.opacity - dt * 24);
   } else {
     // Same position/bob as the gun — just replaces it
     vmShieldGroup.position.set(
@@ -805,7 +862,7 @@ function renderLoop() {
     if (moving) {
       lastMoveTime = now;
       if (isCrouching) setCrouch(false);
-    } else if (!isCrouching && (now - lastMoveTime) >= AUTO_CROUCH_MS) {
+    } else if (!isCrouching && (now - lastMoveTime) >= (cfg?.AUTO_CROUCH_MS ?? CFG.AUTO_CROUCH_MS)) {
       setCrouch(true);
     }
 
@@ -948,12 +1005,24 @@ function renderLoop() {
       mesh.rotation.y = -p.yaw;
       // Distance-based LOD: skip walk animation beyond 60 units
       const _distSq = (p.x - localPos.x) ** 2 + (p.z - localPos.z) ** 2;
+      // Only animate limbs when player is actually moving
+      const _prev  = playerPrevPos.get(p.id);
+      const _moved = _prev ? ((p.x - _prev.x) ** 2 + (p.z - _prev.z) ** 2) > 0.0002 : false;
+      playerPrevPos.set(p.id, { x: p.x, z: p.z });
       if (_distSq < 3600) {
-        const walkPhase = now * 0.006;
-        if (mesh.userData.legL) mesh.userData.legL.rotation.x =  Math.sin(walkPhase) * 0.4;
-        if (mesh.userData.legR) mesh.userData.legR.rotation.x = -Math.sin(walkPhase) * 0.4;
-        if (mesh.userData.armL) mesh.userData.armL.rotation.x = -Math.sin(walkPhase) * 0.3;
-        if (mesh.userData.armR) mesh.userData.armR.rotation.x =  Math.sin(walkPhase) * 0.3;
+        if (_moved) {
+          const walkPhase = now * 0.006;
+          if (mesh.userData.legL) mesh.userData.legL.rotation.x =  Math.sin(walkPhase) * 0.4;
+          if (mesh.userData.legR) mesh.userData.legR.rotation.x = -Math.sin(walkPhase) * 0.4;
+          if (mesh.userData.armL) mesh.userData.armL.rotation.x = -Math.sin(walkPhase) * 0.3;
+          if (mesh.userData.armR) mesh.userData.armR.rotation.x =  Math.sin(walkPhase) * 0.3;
+        } else {
+          // Smoothly return limbs to neutral when idle
+          if (mesh.userData.legL) mesh.userData.legL.rotation.x *= 0.82;
+          if (mesh.userData.legR) mesh.userData.legR.rotation.x *= 0.82;
+          if (mesh.userData.armL) mesh.userData.armL.rotation.x *= 0.82;
+          if (mesh.userData.armR) mesh.userData.armR.rotation.x *= 0.82;
+        }
       }
 
       // Cannon recoil (game feel)
@@ -1017,6 +1086,7 @@ function renderLoop() {
 
   renderer.render(scene, camera);
   updateBullets(dt);
+  updateImpacts(dt);
 
   // Viewmodel on top
   if (vmBuilt && me) {
@@ -1489,7 +1559,10 @@ function _onWSMessage(e) {
       hud.classList.add('active');
       setTimeout(() => hud.classList.remove('active'), 1800);
     }
-    addKillFeed(`${msg.shooterName} ☠ ${msg.targetName}${mine ? ' (+1)' : ''}`, mine);
+    const _kt   = gameState?.players.find(p => p.id === msg.targetId);
+    const _kdist = _kt ? Math.round(Math.sqrt((_kt.x - localPos.x) ** 2 + (_kt.z - localPos.z) ** 2)) : null;
+    const _dtag  = _kdist !== null ? ` · ${_kdist}m` : '';
+    addKillFeed(`${msg.shooterName} ☠ ${msg.targetName}${_dtag}${mine ? '  +100hp' : ''}`, mine);
     return;
   }
 
@@ -1562,7 +1635,7 @@ document.addEventListener('keydown', e => {
   if (k === 'c' || k === 'control') setCrouch(!isCrouching);
   if (k === 'tab') {
     e.preventDefault();
-    if (!isLocked) showScoreboard();
+    showScoreboard();
   }
   if (k === 'f') { e.preventDefault(); showScoreboard(); }
 });
@@ -1573,13 +1646,13 @@ document.addEventListener('keyup', e => {
   if (k === 'a') keys.a = false;
   if (k === 's') keys.s = false;
   if (k === 'd') keys.d = false;
-  if (k === 'f') hideScoreboard();
+  if (k === 'f' || k === 'tab') hideScoreboard();
   if ((k === ' ' || k === 'spacebar') && isLocked) {
     if (spaceDownTime > 0 && localGrounded && !isCrouching) {
       const held = performance.now() - spaceDownTime;
       if (held >= SUPER_JUMP_CHARGE_MS) {
         const me = gameState?.players.find(p => p.id === myId);
-        if (me && me.health > 20) {
+        if (me && me.health > (cfg?.SUPER_JUMP_COST ?? CFG.SUPER_JUMP_COST)) {
           localVy = 44; localGrounded = false;
           safeSend({ type: 'jump_super' });
           playTone(0, 'sine', 0.18, 0.28, 220, 880); // super jump sound
