@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>L-Town</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     {
@@ -19,6 +22,7 @@
 
   <!-- ─── LOBBY ─────────────────────────────────────────────────────────── -->
   <div id="lobby" class="lobby-overlay">
+    <canvas id="lobbyBg"></canvas>
 
     <div class="lobby-header">
       <div class="lobby-logo">⚡</div>
@@ -283,6 +287,92 @@
     </div>
   </div>
 
+  <script>
+    // ── Lobby animated background ────────────────────────────────────────────
+    (function () {
+      const canvas = document.getElementById('lobbyBg');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      let W, H, particles, lines;
+
+      function resize() {
+        W = canvas.width  = canvas.offsetWidth;
+        H = canvas.height = canvas.offsetHeight;
+        init();
+      }
+
+      function rand(min, max) { return min + Math.random() * (max - min); }
+
+      function init() {
+        const count = Math.floor((W * H) / 14000);
+        particles = Array.from({ length: count }, () => ({
+          x: rand(0, W), y: rand(0, H),
+          vx: rand(-0.18, 0.18), vy: rand(-0.18, 0.18),
+          r: rand(1.2, 2.8),
+          alpha: rand(0.3, 0.9),
+          pulse: rand(0, Math.PI * 2),
+          pulseSpeed: rand(0.008, 0.022),
+        }));
+      }
+
+      function draw(ts) {
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw connecting lines between nearby particles
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const a = particles[i], b = particles[j];
+            const dx = a.x - b.x, dy = a.y - b.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 130) {
+              const opacity = (1 - dist / 130) * 0.18;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `rgba(116,240,198,${opacity})`;
+              ctx.lineWidth = 0.6;
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Draw particles
+        for (const p of particles) {
+          p.pulse += p.pulseSpeed;
+          const pulseAlpha = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(116,240,198,${pulseAlpha})`;
+          ctx.fill();
+
+          // Soft glow
+          const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+          grd.addColorStop(0, `rgba(116,240,198,${pulseAlpha * 0.35})`);
+          grd.addColorStop(1, 'rgba(116,240,198,0)');
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
+          ctx.fillStyle = grd;
+          ctx.fill();
+
+          // Move
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0) p.x = W;
+          if (p.x > W) p.x = 0;
+          if (p.y < 0) p.y = H;
+          if (p.y > H) p.y = 0;
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(draw);
+    })();
+  </script>
   <script type="module" src="game.js"></script>
 </body>
 </html>
