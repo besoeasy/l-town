@@ -23,7 +23,7 @@ Built with Node.js, WebSockets, and Three.js.
 No clone, no install — just run:
 
 ```bash
-npx l-town
+npx github:besoeasy/l-town
 ```
 
 Open **http://localhost:30300**

@@ -14,8 +14,7 @@
   ],
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
-    "prepublishOnly": "chmod +x server.js"
+    "dev": "node server.js"
   },
   "dependencies": {
     "three": "^0.179.1",
