@@ -736,13 +736,35 @@ function buildViewmodel() {
   vmGunGroup.add(cannonGlow);
 
   // ── Muzzle flash (shown on shoot, decays quickly) ──────────────────────────
+  // Layer 1 — additive soft glow disc
   const _flashMat = new THREE.MeshBasicMaterial({
     color: 0x88ffff, transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending,
   });
-  const _flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.14), _flashMat);
+  const _flashMesh = new THREE.Mesh(new THREE.CircleGeometry(0.10, 16), _flashMat);
   _flashMesh.position.set(0, -0.012, -0.385);
   vmGunGroup.add(_flashMesh);
   vmGunGroup.userData.muzzleFlash = _flashMesh;
+
+  // Layer 2 — two crossed "blade" quads for an energy-star silhouette
+  const _bladeMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+  const _bladeA = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.26), _bladeMat.clone());
+  _bladeA.position.set(0, -0.012, -0.392);
+  vmGunGroup.add(_bladeA);
+  vmGunGroup.userData.muzzleBladeA = _bladeA;
+  const _bladeB = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.05), _bladeMat.clone());
+  _bladeB.position.set(0, -0.012, -0.392);
+  vmGunGroup.add(_bladeB);
+  vmGunGroup.userData.muzzleBladeB = _bladeB;
+
+  // Layer 3 — brief dynamic point-light to flash-tint the gun metal
+  const _muzzleLight = new THREE.PointLight(0x88ffee, 0, 2.5, 2);
+  _muzzleLight.position.set(0, -0.012, -0.40);
+  vmGunGroup.add(_muzzleLight);
+  vmGunGroup.userData.muzzleLight = _muzzleLight;
 
   vmScene.add(vmGunGroup);
 
@@ -805,6 +827,24 @@ function vmShootKick() {
     flash.scale.setScalar(0.65 + Math.random() * 0.7);
     flash.rotation.z = Math.random() * Math.PI * 2;
   }
+  // Cross blades — random streak length + spin, give the energy-star read
+  const bladeA = vmGunGroup?.userData.muzzleBladeA;
+  const bladeB = vmGunGroup?.userData.muzzleBladeB;
+  if (bladeA && bladeB) {
+    bladeA.material.opacity = 0.95;
+    bladeB.material.opacity = 0.95;
+    const aSc = 0.6 + Math.random() * 0.8;
+    bladeA.scale.set(1, aSc, 1);
+    bladeB.scale.set(aSc, 1, 1);
+    bladeA.rotation.z = Math.random() * Math.PI;
+    bladeB.rotation.z = Math.random() * Math.PI;
+  }
+  // Brief dynamic muzzle point-light — additive punch on top of the flash quad
+  const light = vmGunGroup?.userData.muzzleLight;
+  if (light) {
+    light.intensity = 6.0;
+    light.color.set(0x88ffee);
+  }
 }
 
 // ─── ENERGY BULLET TRACERS ───────────────────────────────────────────────────
@@ -812,6 +852,10 @@ const activeBullets = [];
 const _bDir   = new THREE.Vector3();
 const _bRight = new THREE.Vector3();
 const _bUp    = new THREE.Vector3(0, 1, 0);
+
+// Shared geometry for tracer cores & glow shells — re-used per bullet.
+const _tracerCoreGeo = new THREE.CylinderGeometry(0.03, 0.03, 1, 6);
+const _tracerGlowGeo = new THREE.CylinderGeometry(0.10, 0.10, 1, 8);
 
 function spawnBullet(mode) {
   if (!camera) return;
@@ -826,36 +870,103 @@ function spawnBullet(mode) {
 
   const isHeavy = mode === 'heavy';
   const color   = isHeavy ? 0xff7700 : 0x00eeff;
-  const size    = isHeavy ? 0.075 : 0.045;
-  const length  = isHeavy ? 0.40  : 0.26;
+  const coreW   = isHeavy ? 0.045  : 0.028;
+  const glowW   = isHeavy ? 0.14   : 0.085;
+  const length  = isHeavy ? 0.42  : 0.28;
   const speed   = isHeavy ? 85    : 115;
   const life    = 0.55;
 
-  const geo  = new THREE.BoxGeometry(size, size, length);
-  const mat  = new THREE.MeshBasicMaterial({ color });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(origin);
-  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _bDir);
-  scene.add(mesh);
+  // Core — bright solid bolt (intense, opaque via additive)
+  const coreMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const core = new THREE.Mesh(_tracerCoreGeo, coreMat);
+  core.scale.set(coreW, length, coreW);
 
-  activeBullets.push({ mesh, vel: _bDir.clone().multiplyScalar(speed), life });
+  // Glow shell — soft halo around the core (additive, fades over life)
+  const glowMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.45,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const glow = new THREE.Mesh(_tracerGlowGeo, glowMat);
+  glow.scale.set(glowW, length * 1.05, glowW);
+
+  // Group both under one pivot, oriented along _bDir, then offset by half-length
+  // so the rear tip starts at the muzzle and the bolt streams forward.
+  const group = new THREE.Group();
+  group.add(core);
+  group.add(glow);
+  group.position.copy(origin);
+  // Cylinder's +Y axis — rotate so it aligns with the bullet direction.
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _bDir);
+  // Shift along forward by half the length so the bolt tails from the muzzle.
+  group.position.addScaledVector(_bDir, length / 2);
+  scene.add(group);
+
+  activeBullets.push({
+    group, core, glow,
+    vel:  _bDir.clone().multiplyScalar(speed),
+    life, maxLife: life,
+    isHeavy,
+  });
 }
 
 // ─── BULLET IMPACT EFFECTS ───────────────────────────────────────────────────
 const activeImpacts = [];
+const _sparkGeo    = new THREE.BoxGeometry(0.04, 0.04, 0.16);
 
-function spawnImpact(pos) {
+function spawnImpact(pos, color = 0x00eeff) {
   if (!scene) return;
-  const geo = new THREE.RingGeometry(0.02, 0.15, 8);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x00eeff, transparent: true, opacity: 0.95,
+  // Expanding shock ring ( billboarded to the camera )
+  const ringGeo = new THREE.RingGeometry(0.02, 0.15, 12);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.95,
     side: THREE.DoubleSide, depthWrite: false,
+    blending: THREE.AdditiveBlending,
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(pos);
-  if (camera) mesh.lookAt(camera.position);
-  scene.add(mesh);
-  activeImpacts.push({ mesh, life: 0.18, maxLife: 0.18 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.copy(pos);
+  if (camera) ring.lookAt(camera.position);
+  scene.add(ring);
+
+  // Central flash — bright additive disc, very short-lived
+  const flashGeo = new THREE.CircleGeometry(0.10, 10);
+  const flashMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 1.0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const flash = new THREE.Mesh(flashGeo, flashMat);
+  flash.position.copy(pos);
+  if (camera) flash.lookAt(camera.position);
+  scene.add(flash);
+
+  // Spark fragments — tiny additive boxes hurled outward
+  const sparks = [];
+  const sparkCount = 5;
+  for (let i = 0; i < sparkCount; i++) {
+    const sm = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 1,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const s = new THREE.Mesh(_sparkGeo, sm);
+    s.position.copy(pos);
+    // Random dir on a hemisphere oriented roughly toward the camera (toward viewer)
+    const ang = Math.random() * Math.PI * 2;
+    const rad = 2.0 + Math.random() * 3.0;
+    const dir = new THREE.Vector3(
+      Math.cos(ang) * rad,
+      (Math.random() - 0.2) * rad,
+      Math.sin(ang) * rad,
+    );
+    scene.add(s);
+    sparks.push({ mesh: s, vel: dir });
+  }
+
+  activeImpacts.push({
+    ring, flash, sparks,
+    life: 0.36, maxLife: 0.36,
+  });
 }
 
 function updateImpacts(dt) {
@@ -863,14 +974,35 @@ function updateImpacts(dt) {
     const im = activeImpacts[i];
     im.life -= dt;
     if (im.life <= 0) {
-      scene.remove(im.mesh);
-      im.mesh.geometry.dispose();
-      im.mesh.material.dispose();
+      scene.remove(im.ring);  im.ring.geometry.dispose();  im.ring.material.dispose();
+      scene.remove(im.flash); im.flash.geometry.dispose(); im.flash.material.dispose();
+      for (const sp of im.sparks) {
+        scene.remove(sp.mesh); sp.mesh.material.dispose();
+      }
       activeImpacts.splice(i, 1);
     } else {
-      const t = 1 - im.life / im.maxLife;
-      im.mesh.material.opacity = 0.95 * (1 - t * t);
-      im.mesh.scale.setScalar(1 + t * 5);
+      const t = 1 - im.life / im.maxLife;     // 0 → 1
+      // Ring expands and fades
+      im.ring.material.opacity = 0.95 * (1 - t * t);
+      im.ring.scale.setScalar(1 + t * 5);
+      // Flash pops out then dies fast (first 30% of life)
+      const ft = Math.min(1, t / 0.30);
+      im.flash.material.opacity = 1 - ft;
+      im.flash.scale.setScalar(1 + ft * 1.6);
+      // Sparks fly, slow down, fade
+      for (const sp of im.sparks) {
+        sp.mesh.position.addScaledVector(sp.vel, dt);
+        sp.vel.multiplyScalar(0.86);          // air drag
+        sp.vel.y -= 8 * dt;                    // gravity
+        sp.mesh.material.opacity = Math.max(0, 1 - t * 1.6);
+        // Orient spark along its travel direction
+        if (sp.vel.lengthSq() > 0.01) {
+          sp.mesh.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 0, 1),
+            sp.vel.clone().normalize(),
+          );
+        }
+      }
     }
   }
 }
@@ -878,14 +1010,21 @@ function updateImpacts(dt) {
 function updateBullets(dt) {
   for (let i = activeBullets.length - 1; i >= 0; i--) {
     const b = activeBullets[i];
-    b.mesh.position.addScaledVector(b.vel, dt);
+    // Move pivot forward by velocity — the bolt length stays in place behind it
+    b.group.position.addScaledVector(b.vel, dt);
     b.life -= dt;
     if (b.life <= 0) {
-      spawnImpact(b.mesh.position.clone());
-      scene.remove(b.mesh);
-      b.mesh.geometry.dispose();
-      b.mesh.material.dispose();
+      spawnImpact(b.group.position.clone(), b.isHeavy ? 0xff7700 : 0x00eeff);
+      scene.remove(b.group);
+      b.core.material.dispose();
+      b.glow.material.dispose();
       activeBullets.splice(i, 1);
+    } else {
+      // Fade the glow halo as the bolt dies — gives a comet-tail feel
+      const k = b.life / b.maxLife;
+      b.glow.material.opacity = 0.45 * (0.4 + 0.6 * k);
+      // Subtle pulsing core intensity
+      b.core.material.opacity = 0.85 + 0.10 * Math.sin(b.life * 30);
     }
   }
 }
@@ -919,9 +1058,15 @@ function updateViewmodel(dt, moving, running, canFire = true, shielding = false)
     // Cell glow pulses when shooting
     vmCell.material.emissiveIntensity = 0.3 + vmKick * 1.5;
 
-    // Decay muzzle flash
+    // Decay muzzle flash — disc + two blades + light, all additive on top of the gun
     const _mf = vmGunGroup.userData.muzzleFlash;
     if (_mf) _mf.material.opacity = Math.max(0, _mf.material.opacity - dt * 24);
+    const _bA = vmGunGroup.userData.muzzleBladeA;
+    const _bB = vmGunGroup.userData.muzzleBladeB;
+    if (_bA) _bA.material.opacity = Math.max(0, _bA.material.opacity - dt * 18);
+    if (_bB) _bB.material.opacity = Math.max(0, _bB.material.opacity - dt * 18);
+    const _ml = vmGunGroup.userData.muzzleLight;
+    if (_ml) _ml.intensity = Math.max(0, _ml.intensity - dt * 36);
   } else {
     // Same position/bob as the gun — just replaces it
     vmShieldGroup.position.set(
@@ -1627,7 +1772,10 @@ function _onWSMessage(e) {
     const ch = document.getElementById('crosshair');
     if (ch) {
       ch.classList.add('hit');
-      setTimeout(() => ch.classList.remove('hit'), 120);
+      // Two-stage pop: snap big, then settle back — already hits .hit via CSS for color.
+      ch.style.transform = 'translate(-50%, -50%) scale(1.55)';
+      setTimeout(() => { ch.style.transform = ''; }, 90);
+      setTimeout(() => ch.classList.remove('hit'), 160);
     }
     return;
   }
