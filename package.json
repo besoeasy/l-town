@@ -4,9 +4,18 @@
   "description": "Lightweight web-based solo FPS arena shooter",
   "type": "module",
   "main": "server.js",
+  "bin": {
+    "l-town": "server.js"
+  },
+  "files": [
+    "server.js",
+    "public/",
+    "sounds/"
+  ],
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "prepublishOnly": "chmod +x server.js"
   },
   "dependencies": {
     "three": "^0.179.1",

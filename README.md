@@ -12,11 +12,31 @@ Built with Node.js, WebSockets, and Three.js.
 
 - Up to 300 players per server
 - Procedurally generated 750×750 arena, regenerates each match
-- 6 playable characters with unique abilities
+- 11 playable characters with unique abilities
 - 10-minute matches, top 3 players win
 - No accounts or sign-up required
 
 ## Quick Start
+
+### Option 1 — npx (recommended)
+
+No clone, no install — just run:
+
+```bash
+npx l-town
+```
+
+Open **http://localhost:30300**
+
+### Option 2 — Docker
+
+```bash
+docker run -d -p 30300:30300 --name l-town ghcr.io/besoeasy/l-town:latest
+```
+
+Open **http://localhost:30300** — share `http://<your-local-ip>:30300` with anyone on the same network.
+
+### Option 3 — From source
 
 ```bash
 git clone https://github.com/besoeasy/l-town.git
@@ -27,13 +47,7 @@ npm start
 
 Open **http://localhost:30300**
 
-## LAN Party (Docker)
-
-```bash
-docker run -d -p 30300:30300 --name l-town ghcr.io/besoeasy/l-town:latest
-```
-
-Share `http://<your-local-ip>:30300` with anyone on the same network.
+---
 
 ## Controls
 

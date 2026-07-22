@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // ─── PROCEDURAL MAP GENERATION ───────────────────────────────────────────────
 import http from 'http';
 import https from 'https';
