@@ -55,19 +55,21 @@ Open **http://localhost:30300**
 
 ## Characters
 
-| Character | Ability |
+Every player runs the same RX-11 chassis: 500 hull, base speed, fixed SUPER (50) / SHIELD (80) costs. Cores differ only by their Q ability.
+
+| Core | Ability |
 |---|---|
 | ⚡ Telepotu | Swap positions with a random enemy (60s) |
 | 👻 Chumantr | Go invisible for 10s, can't shoot (30s) |
-| 🔥 Denja | Passive: 2× speed, max 75% HP |
-| 💊 Mednix | Restore 1–50 HP (20s) |
-| 🛡 Tank | Passive: 2× HP, half speed |
-| ⚓ Anchor | Passive: SUPER and SHIELD cost 50% less HP |
-| 🌀 Surge | Drain 30 HP from the nearest enemy within 40 units (25s) |
-| 💀 Jinx | Passive: Death Curse — killer loses 80 HP when you die |
-| 🎲 Gambler | Roll the dice: +200 HP · land on enemy · instant death (45s) |
-| 🧫 Parasite | Passive: Drain 3 HP/s from every enemy within 15 units |
-| 🔴 Berserker | Passive: Speed and damage scale up to 2.5× as HP drops |
+| 🔥 Denja | Overdrive: 2× speed for 8s (30s) |
+| 💊 Mednix | Restore 1–50 hull (20s) |
+| 🛡 Tank | Bulwark: −50% damage taken for 8s (35s) |
+| ⚓ Anchor | Aegis: 3s full immunity, free (40s) |
+| 🌀 Surge | Drain 30 hull from the nearest enemy within 40 units (25s) |
+| 💀 Jinx | Passive: Death Curse — killer loses 80 hull when you die |
+| 🎲 Gambler | Roll the dice: +200 hull · land on enemy · instant death (45s) |
+| 🧫 Parasite | Leech burst: 8 hull/s from enemies within 15 units for 6s (30s) |
+| 🔴 Berserker | Rage: +50% damage, +25% speed for 8s (35s) |
 
 ## License
 

@@ -73,15 +73,15 @@ const VALID_CHARS = ['telepotu', 'chumantr', 'denja', 'mednix', 'tank', 'anchor'
 
 function makePlayer(id, name, character = 'telepotu') {
   const s = randomSpawn();
-  const maxHp = character === 'denja' ? CFG.MAX_HEALTH * 0.75
-              : character === 'tank'  ? CFG.MAX_HEALTH * 2
-              : CFG.MAX_HEALTH;
+  // Standardized: every core uses the same RX-11 chassis —
+  // 500 max hull, base speed, fixed SUPER/SHIELD costs.
+  // Cores differ ONLY by their Q ability effect.
   return {
     id, name,
     character,
     x: s.x, y: s.y, z: s.z,
     yaw: 0, pitch: 0,
-    health:      maxHp,
+    health:      CFG.MAX_HEALTH,
     superActive:   false,
     superEnd:      0,
     shieldActive:  false,
@@ -102,6 +102,16 @@ function makePlayer(id, name, character = 'telepotu') {
     // Class ability
     invisible:      false,
     invisibleEnd:   0,
+    overdriveActive: false, // denja Q: 2× speed burst
+    overdriveEnd:    0,
+    bulwarkActive:   false, // tank Q: 50% damage reduction
+    bulwarkEnd:      0,
+    aegisActive:     false, // anchor Q: free mini-shield
+    aegisEnd:        0,
+    leechActive:     false, // parasite Q: leech field burst
+    leechEnd:        0,
+    rageActive:      false, // berserker Q: +50% dmg / +25% speed burst
+    rageEnd:         0,
     lastAbilityAt:  0,
   };
 }
@@ -187,8 +197,12 @@ function raycastPlayers(shooterId, ox, oy, oz, dx, dy, dz) {
 function applyDamage(targetId, dmg, shooterId) {
   const p = players.get(targetId);
   if (!p || !p.alive) return;
-  // Shield / Anchor absorbs all damage
+  // Shield absorbs all damage
   if (p.shieldActive && Date.now() < p.shieldEnd) return;
+  // Anchor aegis Q: 3s of full immunity
+  if (p.aegisActive && Date.now() < p.aegisEnd) return;
+  // Tank bulwark Q: 50% damage reduction while active
+  if (p.bulwarkActive && Date.now() < p.bulwarkEnd) dmg *= 0.5;
   p.lastHitTime = Date.now();
   p.health -= dmg;
   // Notify the hit player directly so the client can show a flash
@@ -242,11 +256,9 @@ function fireRay(player) {
   if (hit) {
     // Damage falloff: full damage up close, 25% minimum at max range (120 units)
     const distMult = Math.max(0.25, 1 - hit.t / 160);
-    // Berserker: rage scales damage up to 2.5× as HP drops
-    const maxHp = player.character === 'tank' ? CFG.MAX_HEALTH * 2 : CFG.MAX_HEALTH;
-    const rageMult = player.character === 'berserker'
-      ? (1 + 1.5 * (1 - Math.max(0, player.health) / maxHp))
-      : 1;
+    // Berserker Q rage: +50% damage while burst is active. Same base damage otherwise.
+    const rageMult = (player.character === 'berserker' && player.rageActive && Date.now() < player.rageEnd)
+      ? 1.5 : 1;
     applyDamage(hit.id, CFG.DMG_SINGLE * mult * distMult * rageMult, player.id);
   }
 }
@@ -316,12 +328,15 @@ setInterval(() => {
         const s = randomSpawn();
         Object.assign(p, {
           x: s.x, y: s.y, z: s.z,
-          health: p.character === 'denja' ? Math.floor(CFG.MAX_HEALTH / 2 * 0.75)
-               : p.character === 'tank'  ? Math.floor(CFG.MAX_HEALTH * 2 * 0.75)
-               : Math.floor(CFG.MAX_HEALTH * 0.75),
+          health: Math.floor(CFG.MAX_HEALTH * 0.75),
           superActive: false, superEnd: 0,
           shieldActive: false, shieldEnd: 0,
           invisible: false, invisibleEnd: 0,
+          overdriveActive: false, overdriveEnd: 0,
+          bulwarkActive: false, bulwarkEnd: 0,
+          aegisActive: false, aegisEnd: 0,
+          leechActive: false, leechEnd: 0,
+          rageActive: false, rageEnd: 0,
           crouching: false, lastMoveTime: Date.now(), vy: 0,
           alive: true, respawnAt: 0,
         });
@@ -350,10 +365,10 @@ setInterval(() => {
     if (p.y <= 1.6) { p.y = 1.6; p.vy = 0; }
 
     // Regen (after 3 s of no damage) — 3x when crouching; kill boost stacks
+    // Standardized: all cores regen to the same 500 max.
     if (now - p.lastHitTime > CFG.REGEN_DELAY) {
-      const rate   = (p.crouching ? 3 : 1) * dt;
-      const regenCap = p.character === 'tank' ? CFG.MAX_HEALTH * 2 : CFG.MAX_HEALTH;
-      if (p.health < regenCap) p.health = Math.min(regenCap, p.health + rate);
+      const rate = (p.crouching ? 3 : 1) * dt;
+      if (p.health < CFG.MAX_HEALTH) p.health = Math.min(CFG.MAX_HEALTH, p.health + rate);
     }
 
     // Auto-crouch after 10 s of no movement
@@ -367,19 +382,23 @@ setInterval(() => {
     if (p.shieldActive && now > p.shieldEnd) p.shieldActive = false;
     // Invisible (chumantr) timeout
     if (p.invisible && now > p.invisibleEnd) p.invisible = false;
-    // Denja: health permanently capped at half max
-    if (p.character === 'denja' && p.health > CFG.MAX_HEALTH / 2)
-      p.health = CFG.MAX_HEALTH / 2;
-    // Tank: health permanently capped at double max
-    if (p.character === 'tank' && p.health > CFG.MAX_HEALTH * 2)
-      p.health = CFG.MAX_HEALTH * 2;
-    // Parasite: drain 3 HP/s from every player within 15 units
-    if (p.character === 'parasite' && p.alive) {
+    // Denja overdrive timeout (Q burst — see classAbility)
+    if (p.overdriveActive && now > p.overdriveEnd) p.overdriveActive = false;
+    // Tank bulwark timeout (Q shield — see classAbility)
+    if (p.bulwarkActive && now > p.bulwarkEnd) p.bulwarkActive = false;
+    // Anchor aegis timeout (Q mini-shield — see classAbility)
+    if (p.aegisActive && now > p.aegisEnd) p.aegisActive = false;
+    // Parasite leech burst timeout (Q — see classAbility)
+    if (p.leechActive && now > p.leechEnd) p.leechActive = false;
+    // Berserker rage timeout (Q — see classAbility)
+    if (p.rageActive && now > p.rageEnd) p.rageActive = false;
+    // Parasite Q leech burst: 8 HP/s from enemies within 15u for 6s
+    if (p.leechActive && p.alive && now < p.leechEnd) {
       for (const [oid, other] of players) {
         if (oid === p.id || !other.alive) continue;
         const dx = other.x - p.x, dz = other.z - p.z;
         if (Math.sqrt(dx * dx + dz * dz) < 15) {
-          const drain = 3 * dt;
+          const drain = 8 * dt;
           other.health -= drain;
           other.lastHitTime = now;
           p.health = Math.min(p.health + drain, CFG.MAX_HEALTH);
@@ -584,19 +603,17 @@ wss.on('connection', ws => {
                Math.abs(player.x - box.x) < box.w / 2 + CFG.PLAYER_RADIUS &&
                Math.abs(player.z - box.z) < box.d / 2 + CFG.PLAYER_RADIUS;
       });
-      const superMult    = player.superActive ? 1.5 : 1;
-      const airMult      = inAir ? 1.2 : 1;
-      const denjaMult    = player.character === 'denja'     ? 2   : 1;
-      const tankMult     = player.character === 'tank'      ? 0.5 : 1;
-      const parasiteMult = player.character === 'parasite'  ? 0.8 : 1;
-      // Berserker: speed scales from 1× (full HP) up to 2.5× (near death)
-      const bMaxHp    = player.character === 'tank' ? CFG.MAX_HEALTH * 2 : CFG.MAX_HEALTH;
-      const berserkMult = player.character === 'berserker'
-        ? (1 + 1.5 * (1 - Math.max(0, player.health) / bMaxHp))
-        : 1;
+      const superMult = player.superActive ? 1.5 : 1;
+      const airMult   = inAir ? 1.2 : 1;
+      // Standardized: same base speed for all cores.
+      // Denja Q grants a temporary 2× overdrive burst; berserker Q grants
+      // +25% speed for 8s. No permanent speed modifiers anywhere.
+      const denjaMult = player.overdriveActive && Date.now() < player.overdriveEnd ? 2 : 1;
+      const berserkMult = (player.character === 'berserker' && player.rageActive && Date.now() < player.rageEnd)
+        ? 1.25 : 1;
       const speed = (player.crouching ? CFG.CROUCH_SPEED
                   : msg.run          ? CFG.RUN_SPEED
-                  : CFG.PLAYER_SPEED) * superMult * airMult * denjaMult * tankMult * parasiteMult * berserkMult;
+                  : CFG.PLAYER_SPEED) * superMult * airMult * denjaMult * berserkMult;
       if (len > 0) {
         mx = (mx / len) * speed * dt;
         mz = (mz / len) * speed * dt;
@@ -666,10 +683,10 @@ wss.on('connection', ws => {
     }
 
     // ── SUPER ─────────────────────────────────────────────────────────────
+    // Standardized: fixed 50 hull cost for every core.
     if (msg.type === 'super') {
-      const superCost = player.character === 'anchor' ? Math.floor(CFG.SUPER_COST * 0.5) : CFG.SUPER_COST;
-      if (player.alive && !player.superActive && player.health >= superCost + 1) {
-        player.health     -= superCost;
+      if (player.alive && !player.superActive && player.health >= CFG.SUPER_COST + 1) {
+        player.health     -= CFG.SUPER_COST;
         player.superActive = true;
         player.superEnd    = Date.now() + CFG.SUPER_DURATION;
       }
@@ -677,13 +694,13 @@ wss.on('connection', ws => {
     }
 
     // ── SHIELD ────────────────────────────────────────────────────────────
+    // Standardized: fixed 80 hull cost for every core.
     if (msg.type === 'shield') {
       const _now = Date.now();
-      const shieldCost = player.character === 'anchor' ? Math.floor(CFG.SHIELD_COST * 0.5) : CFG.SHIELD_COST;
-      if (player.alive && !player.shieldActive && player.health >= shieldCost + 1
+      if (player.alive && !player.shieldActive && player.health >= CFG.SHIELD_COST + 1
           && _now - player.lastShieldAt >= 15000) { // 15-second cooldown between activations
         player.lastShieldAt = _now;
-        player.health      -= shieldCost;
+        player.health      -= CFG.SHIELD_COST;
         player.shieldActive = true;
         player.shieldEnd    = Date.now() + CFG.SHIELD_DURATION;
         player.lastHitTime  = Date.now(); // pause regen during shield cost
@@ -763,8 +780,40 @@ wss.on('connection', ws => {
           if (player.ws?.readyState === 1) player.ws.send(JSON.stringify({ type: 'gamblerResult', result: 'death' }));
           broadcast({ type: 'kill', shooterId: player.id, targetId: player.id, shooterName: '🎲 GAMBLE', targetName: player.name });
         }
+      } else if (player.character === 'denja') {
+        // OVERDRIVE [Q]: 2× speed burst for 8s. Same hull, same costs — pure tempo.
+        if (_now - player.lastAbilityAt < 30000) return;
+        player.lastAbilityAt = _now;
+        player.overdriveActive = true;
+        player.overdriveEnd    = _now + 8000;
+      } else if (player.character === 'tank') {
+        // BULWARK [Q]: 50% damage reduction for 8s. Same 500 hull — timed defense.
+        if (_now - player.lastAbilityAt < 35000) return;
+        player.lastAbilityAt = _now;
+        player.bulwarkActive = true;
+        player.bulwarkEnd    = _now + 8000;
+      } else if (player.character === 'anchor') {
+        // AEGIS [Q]: 3s of full damage immunity, zero hull cost.
+        // Same SUPER/SHIELD prices as everyone — this free mini-shield is the perk.
+        if (_now - player.lastAbilityAt < 40000) return;
+        player.lastAbilityAt = _now;
+        player.aegisActive = true;
+        player.aegisEnd    = _now + 3000;
+      } else if (player.character === 'parasite') {
+        // LEECH BURST [Q]: drain 8 hull/s from enemies within 15u for 6s.
+        if (_now - player.lastAbilityAt < 30000) return;
+        player.lastAbilityAt = _now;
+        player.leechActive = true;
+        player.leechEnd    = _now + 6000;
+      } else if (player.character === 'berserker') {
+        // RAGE [Q]: 8s of +50% damage and +25% speed. Passive rage removed —
+        // same base stats, this burst is the payoff.
+        if (_now - player.lastAbilityAt < 35000) return;
+        player.lastAbilityAt = _now;
+        player.rageActive = true;
+        player.rageEnd    = _now + 8000;
       }
-      // denja, tank, anchor, jinx, parasite, berserker have passive abilities — no active Q effect
+      // jinx has a passive death curse — no active Q effect
       return;
     }
 

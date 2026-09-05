@@ -1325,11 +1325,11 @@ function renderLoop() {
     const inAir = !localGrounded;
     const superMult = isSuperOn ? 1.5 : 1;
     const airMult   = inAir ? 1.2 : 1;
-    const denjaMult = localCharacter === 'denja' ? 2   : 1;
-    const tankMult  = localCharacter === 'tank'  ? 0.5 : 1;
+    // Standardized: same base speed for all cores (server is authoritative;
+    // Q bursts like denja overdrive apply server-side).
     const speed = (isCrouching ? (cfg?.CROUCH_SPEED ?? CFG.CROUCH_SPEED)
           : running      ? (cfg?.RUN_SPEED   ?? CFG.RUN_SPEED)
-          : (cfg?.PLAYER_SPEED ?? CFG.PLAYER_SPEED)) * superMult * airMult * denjaMult * tankMult;
+          : (cfg?.PLAYER_SPEED ?? CFG.PLAYER_SPEED)) * superMult * airMult;
     if (len > 0) {
       localPos.x += (mx / len) * speed * dt;
       localPos.z += (mz / len) * speed * dt;
@@ -1801,10 +1801,10 @@ function updateHUD() {
   // Cloak overlay (chumantr)
   document.getElementById('cloakOverlay').classList.toggle('active', !!me.invisible);
 
-  // Class ability HUD
+  // Class ability HUD — standardized: every core has an active Q.
   const char = me.character ?? localCharacter;
-  const CHAR_LABEL = { telepotu: '⚡ WARP', chumantr: '👻 CLOAK', denja: '🔥 2× SPEED', mednix: '💊 SURGE', tank: '🛡 PASSIVE', anchor: '⚓ IMMUNITY', surge: '🌀 DRAIN', jinx: '💀 CURSE', gambler: '🎲 ALL IN', parasite: '🧫 DRAIN AURA', berserker: '🔴 RAGE' };
-  const CHAR_CD = { telepotu: 60000, chumantr: 30000, denja: -1, mednix: 20000, tank: -1, anchor: -1, surge: 25000, jinx: -1, gambler: 45000, parasite: -1, berserker: -1 };
+  const CHAR_LABEL = { telepotu: '⚡ WARP', chumantr: '👻 CLOAK', denja: '🔥 OVERDRIVE', mednix: '💊 SURGE', tank: '🛡 BULWARK', anchor: '⚓ AEGIS', surge: '🌀 DRAIN', jinx: '💀 CURSE', gambler: '🎲 ALL IN', parasite: '🧫 LEECH', berserker: '🔴 RAGE' };
+  const CHAR_CD = { telepotu: 60000, chumantr: 30000, denja: 30000, mednix: 20000, tank: 35000, anchor: 40000, surge: 25000, jinx: -1, gambler: 45000, parasite: 30000, berserker: 35000 };
   const cd = CHAR_CD[char] ?? 30000;
 
   if (HUD.classIcon && HUD.className && HUD.classCD && HUD.classFill) {
@@ -2211,7 +2211,8 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   }
 });
 
-// Core selector — same RX-11 chassis, nuclear core defines the power.
+// Core selector — same RX-11 chassis for all: 500 hull, base speed,
+// fixed SUPER (50) / SHIELD (80) costs. Cores differ ONLY by Q effect.
 // Numbers match server.js exactly.
 const CORE_INFO = {
   telepotu: { icon: '⚡', name: 'TELEPOTU CORE', tag: 'WARP', type: 'ACTIVE · press Q · 60s cooldown',
@@ -2222,42 +2223,42 @@ const CORE_INFO = {
     desc: 'Vanish completely for 10 seconds. You cannot shoot while cloaked — use it to reposition or escape.',
     specs: [['Effect', 'Invisible 10s'], ['Cooldown', '30s'], ['Can shoot', 'No'], ['Ends on', 'Timer only']],
     speed: 65, hp: 100, diff: 55, tip: 'Tip: cloak, walk behind cover, then decloak next to a weak enemy.' },
-  denja: { icon: '🔥', name: 'DENJA CORE', tag: 'OVERCLOCK', type: 'PASSIVE · always on',
-    desc: 'Overclocked servos run at 2× speed permanently. Reactor is unstable — hull capped at 50% max.',
-    specs: [['Speed', '2× (18 u/s)'], ['Max hull', '250 (50%)'], ['Respawn hull', '187'], ['Ability key', 'None — passive']],
-    speed: 100, hp: 50, diff: 60, tip: 'Tip: you win by dodging, not trading. Never stand still.' },
+  denja: { icon: '🔥', name: 'DENJA CORE', tag: 'OVERDRIVE', type: 'ACTIVE · press Q · 30s cooldown',
+    desc: 'Overdrive burst: 2× speed for 8 seconds. Same 500 hull as everyone — pure tempo, no downside.',
+    specs: [['Effect', '2× speed, 8s'], ['Cooldown', '30s'], ['Max hull', '500 (standard)'], ['Best used', 'Chase or escape']],
+    speed: 100, hp: 100, diff: 45, tip: 'Tip: pop Q to chase a weak enemy or break away from a bad fight.' },
   mednix: { icon: '💊', name: 'MEDNIX CORE', tag: 'SURGE', type: 'ACTIVE · press Q · 20s cooldown',
     desc: 'Emergency repair surge restores 1–50 hull instantly. Luck decides how much you get.',
-    specs: [['Effect', '+1 to +50 hull'], ['Cooldown', '20s'], ['Overheal', 'No — capped at max'], ['Best used', 'Right after a trade']],
+    specs: [['Effect', '+1 to +50 hull'], ['Cooldown', '20s'], ['Overheal', 'No — capped at 500'], ['Best used', 'Right after a trade']],
     speed: 65, hp: 100, diff: 25, tip: 'Tip: shortest cooldown in the game — press Q the moment it lights up.' },
-  tank: { icon: '🛡', name: 'TANK CORE', tag: 'BULWARK', type: 'PASSIVE · always on',
-    desc: 'Heavy plating doubles max hull to 1000 but servos run at half speed. A walking fortress.',
-    specs: [['Max hull', '1000 (2×)'], ['Speed', '0.5× (4.5 u/s)'], ['Respawn hull', '750'], ['Ability key', 'None — passive']],
-    speed: 30, hp: 100, diff: 20, tip: 'Tip: hold angles and let enemies come to you. You win every trade.' },
-  anchor: { icon: '⚓', name: 'ANCHOR CORE', tag: 'EFFICIENT', type: 'PASSIVE · always on',
-    desc: 'Efficient reactor cuts SUPER and SHIELD hull costs by 50%. No active ability — pure economy.',
-    specs: [['SUPER cost', '25 (was 50)'], ['SHIELD cost', '40 (was 80)'], ['SHIELD cooldown', '15s'], ['Ability key', 'None — passive']],
-    speed: 65, hp: 100, diff: 30, tip: 'Tip: pop SUPER and SHIELD twice as often as anyone else.' },
+  tank: { icon: '🛡', name: 'TANK CORE', tag: 'BULWARK', type: 'ACTIVE · press Q · 35s cooldown',
+    desc: 'Bulwark plating: take 50% less damage for 8 seconds. Same 500 hull — timed defense, not a bigger pool.',
+    specs: [['Effect', '-50% damage, 8s'], ['Cooldown', '35s'], ['Max hull', '500 (standard)'], ['Best used', 'Push into a fight']],
+    speed: 65, hp: 100, diff: 20, tip: 'Tip: pop Q before pushing — you win every trade while it holds.' },
+  anchor: { icon: '⚓', name: 'ANCHOR CORE', tag: 'AEGIS', type: 'ACTIVE · press Q · 40s cooldown',
+    desc: 'Aegis field: 3 seconds of full damage immunity, zero hull cost. SUPER and SHIELD cost the standard 50 / 80.',
+    specs: [['Effect', 'Immune 3s'], ['Cooldown', '40s'], ['Cost', 'Free'], ['Best used', 'Dodge a burst']],
+    speed: 65, hp: 100, diff: 30, tip: 'Tip: time Q against charged shots — waste their best damage.' },
   surge: { icon: '🌀', name: 'SURGE CORE', tag: 'DRAIN', type: 'ACTIVE · press Q · 25s cooldown',
     desc: 'Siphon 30 hull from the nearest enemy within 40 units and absorb it. Never kills — leaves them at 1.',
     specs: [['Effect', 'Drain 30 hull'], ['Range', '40 units'], ['Cooldown', '25s'], ['Kill?', 'No — leaves 1 HP']],
     speed: 65, hp: 100, diff: 45, tip: 'Tip: drain, then finish with one shot while they panic.' },
   jinx: { icon: '💀', name: 'JINX CORE', tag: 'CURSE', type: 'PASSIVE · triggers on death',
-    desc: 'Death curse: whoever kills you instantly loses 80 hull — even if it kills them back.',
+    desc: 'Death curse: whoever kills you instantly loses 80 hull — even if it kills them back. The only passive core.',
     specs: [['Effect', '-80 hull to killer'], ['Trigger', 'On death'], ['Cooldown', 'None'], ['Suicide', 'No curse']],
     speed: 65, hp: 100, diff: 35, tip: 'Tip: play aggressive — every death punishes your killer.' },
   gambler: { icon: '🎲', name: 'GAMBLER CORE', tag: 'CHAOS', type: 'ACTIVE · press Q · 45s cooldown',
     desc: 'Roll the reactor dice: ⅓ chance +200 hull, ⅓ teleport onto a random enemy, ⅓ instant death.',
     specs: [['Heal', '+200 (⅓)'], ['Teleport', 'Onto enemy (⅓)'], ['Death', 'Instant (⅓)'], ['Cooldown', '45s']],
     speed: 65, hp: 100, diff: 90, tip: 'Tip: only roll when you are already losing — nothing to lose.' },
-  parasite: { icon: '🧫', name: 'PARASITE CORE', tag: 'LEECH', type: 'PASSIVE · always on',
-    desc: 'Leech field drains 3 hull/s from every enemy within 15 units and feeds it to you. Slightly slower (0.8×).',
-    specs: [['Effect', '3 hull/s per enemy'], ['Range', '15 units'], ['Speed', '0.8× (7.2 u/s)'], ['Can kill', 'Yes — earns score']],
-    speed: 50, hp: 100, diff: 50, tip: 'Tip: hug groups — the more enemies near you, the faster you heal.' },
-  berserker: { icon: '🔴', name: 'BERSERKER CORE', tag: 'RAGE', type: 'PASSIVE · scales with damage',
-    desc: 'Rage reactor: speed and bullet damage scale up to 2.5× as hull drops. Most dangerous when nearly dead.',
-    specs: [['Damage', '1× → 2.5×'], ['Speed', '1× → 2.5×'], ['Trigger', 'Low hull'], ['Ability key', 'None — passive']],
-    speed: 65, hp: 100, diff: 70, tip: 'Tip: stay at low hull on purpose — you outgun everyone below 100 HP.' },
+  parasite: { icon: '🧫', name: 'PARASITE CORE', tag: 'LEECH', type: 'ACTIVE · press Q · 30s cooldown',
+    desc: 'Leech burst: drain 8 hull/s from every enemy within 15 units for 6 seconds. Same speed, same hull.',
+    specs: [['Effect', '8 hull/s, 6s'], ['Range', '15 units'], ['Cooldown', '30s'], ['Can kill', 'Yes — earns score']],
+    speed: 65, hp: 100, diff: 50, tip: 'Tip: dive into a group, pop Q, watch your hull climb.' },
+  berserker: { icon: '🔴', name: 'BERSERKER CORE', tag: 'RAGE', type: 'ACTIVE · press Q · 35s cooldown',
+    desc: 'Rage burst: +50% bullet damage and +25% speed for 8 seconds. Same base stats — this window is the payoff.',
+    specs: [['Damage', '+50% for 8s'], ['Speed', '+25% for 8s'], ['Cooldown', '35s'], ['Best used', 'Commit to a duel']],
+    speed: 65, hp: 100, diff: 60, tip: 'Tip: pop Q at the start of a duel — you outgun everyone inside the window.' },
 };
 
 function renderCoreDetail(char) {
