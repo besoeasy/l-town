@@ -65,6 +65,15 @@ let matchActive = false;
 let matchStart  = 0;
 let matchTimer  = null;
 
+// Reconnect grace: disconnected players keep their unit for 15s.
+// Token → { playerId, expiresAt, timeout }. Client stores the token and
+// sends `rejoin` on a fresh socket to reclaim the same player.
+const RECONNECT_GRACE_MS = 15000;
+const pendingReconnects = new Map(); // token → { playerId, expiresAt, timeout }
+function makeReconnectToken() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
 function randomSpawn() {
   return { ...MAP.spawns[Math.floor(Math.random() * MAP.spawns.length)] };
 }
@@ -113,6 +122,7 @@ function makePlayer(id, name, character = 'telepotu') {
     rageActive:      false, // berserker Q: +50% dmg / +25% speed burst
     rageEnd:         0,
     lastAbilityAt:  0,
+    disconnectedAt:  0, // set on ws close; cleared on rejoin
   };
 }
 
@@ -207,12 +217,12 @@ function applyDamage(targetId, dmg, shooterId) {
   p.health -= dmg;
   // Notify the hit player directly so the client can show a flash
   if (p.ws?.readyState === 1) {
-    p.ws.send(JSON.stringify({ type: 'hit' }));
+    p.ws.send(JSON.stringify({ type: 'hit', amount: Math.round(dmg) }));
   }
-  // Notify the shooter so they get a crosshair hit-marker
+  // Notify the shooter so they get a crosshair hit-marker + damage number
   const shooter = players.get(shooterId);
   if (shooter?.ws?.readyState === 1) {
-    shooter.ws.send(JSON.stringify({ type: 'hitConfirm' }));
+    shooter.ws.send(JSON.stringify({ type: 'hitConfirm', amount: Math.round(dmg), targetName: p.name, killed: p.health <= 0 }));
   }
   if (p.health <= 0) {
     p.health   = 0;
@@ -323,6 +333,9 @@ setInterval(() => {
   if (!matchActive) return;
 
   for (const p of players.values()) {
+    // Disconnected units hold position: skip regen/abilities, still vulnerable.
+    // Gravity still applies so they don't float if dropped mid-air.
+    const holding = !p.ws && p.disconnectedAt > 0;
     if (!p.alive) {
       if (p.respawnAt > 0 && now >= p.respawnAt) {
         const s = randomSpawn();
@@ -366,7 +379,8 @@ setInterval(() => {
 
     // Regen (after 3 s of no damage) — 3x when crouching; kill boost stacks
     // Standardized: all cores regen to the same 500 max.
-    if (now - p.lastHitTime > CFG.REGEN_DELAY) {
+    // Held (disconnected) units don't regen.
+    if (!holding && now - p.lastHitTime > CFG.REGEN_DELAY) {
       const rate = (p.crouching ? 3 : 1) * dt;
       if (p.health < CFG.MAX_HEALTH) p.health = Math.min(CFG.MAX_HEALTH, p.health + rate);
     }
@@ -393,7 +407,8 @@ setInterval(() => {
     // Berserker rage timeout (Q — see classAbility)
     if (p.rageActive && now > p.rageEnd) p.rageActive = false;
     // Parasite Q leech burst: 8 HP/s from enemies within 15u for 6s
-    if (p.leechActive && p.alive && now < p.leechEnd) {
+    // Held (disconnected) units don't leech.
+    if (!holding && p.leechActive && p.alive && now < p.leechEnd) {
       for (const [oid, other] of players) {
         if (oid === p.id || !other.alive) continue;
         const dx = other.x - p.x, dz = other.z - p.z;
@@ -571,11 +586,50 @@ wss.on('connection', ws => {
       joined = true;
       clearTimeout(_joinTimer);
       if (!matchActive) startMatch();
+      const reconnectToken = makeReconnectToken();
+      pendingReconnects.set(reconnectToken, { playerId: id, expiresAt: 0, timeout: null });
       ws.send(JSON.stringify({
         type:     'welcome',
         playerId: id,
         seed:     MAP_SEED,
         cfg:      CFG,
+        reconnectToken,
+        graceMs:  RECONNECT_GRACE_MS,
+      }));
+      return;
+    }
+
+    // ── REJOIN (after a brief disconnect, reclaim the same unit) ──────────
+    if (msg.type === 'rejoin' && !joined) {
+      const entry = pendingReconnects.get(String(msg.token ?? ''));
+      if (!entry) {
+        ws.send(JSON.stringify({ type: 'error', reason: 'Reconnect expired — please rejoin' }));
+        return ws.close();
+      }
+      const existing = players.get(entry.playerId);
+      if (!existing) {
+        pendingReconnects.delete(String(msg.token ?? ''));
+        ws.send(JSON.stringify({ type: 'error', reason: 'Reconnect expired — please rejoin' }));
+        return ws.close();
+      }
+      clearTimeout(entry.timeout);
+      pendingReconnects.delete(String(msg.token ?? ''));
+      player = existing;
+      player.ws = ws;
+      player.disconnectedAt = 0;
+      joined = true;
+      clearTimeout(_joinTimer);
+      const reconnectToken = makeReconnectToken();
+      pendingReconnects.set(reconnectToken, { playerId: player.id, expiresAt: 0, timeout: null });
+      ws.send(JSON.stringify({
+        type:     'welcome',
+        playerId: player.id,
+        seed:     MAP_SEED,
+        cfg:      CFG,
+        reconnectToken,
+        graceMs:  RECONNECT_GRACE_MS,
+        rejoined: true,
+        x: player.x, y: player.y, z: player.z,
       }));
       return;
     }
@@ -838,10 +892,32 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     clearTimeout(_joinTimer);
-    players.delete(id);
-    if (players.size === 0 && matchActive) {
-      clearTimeout(matchTimer);
-      matchActive = false;
+    // Reconnect grace: keep the unit for 15s so a brief disconnect isn't death.
+    // The unit holds position (frozen, no input) and can be reclaimed via `rejoin`.
+    if (joined && player && players.has(player.id)) {
+      player.ws = null;
+      player.disconnectedAt = Date.now();
+      // Find the token issued for this player and arm its expiry
+      for (const [tok, entry] of pendingReconnects) {
+        if (entry.playerId === player.id && !entry.timeout) {
+          entry.expiresAt = Date.now() + RECONNECT_GRACE_MS;
+          entry.timeout = setTimeout(() => {
+            pendingReconnects.delete(tok);
+            players.delete(player.id);
+            if (players.size === 0 && matchActive) {
+              clearTimeout(matchTimer);
+              matchActive = false;
+            }
+          }, RECONNECT_GRACE_MS);
+          break;
+        }
+      }
+    } else {
+      players.delete(id);
+      if (players.size === 0 && matchActive) {
+        clearTimeout(matchTimer);
+        matchActive = false;
+      }
     }
   });
 

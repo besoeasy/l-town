@@ -133,10 +133,25 @@ let matchEnded  = false;
 let latencyMs   = 0;
 let localCharacter = 'telepotu'; // set from character card selection
 
+// Reconnect grace: server holds our unit for 15s. Store the token from
+// `welcome` and send `rejoin` on a fresh socket to reclaim it.
+let reconnectToken = sessionStorage.getItem('ltown-reconnect-token') || null;
+let reconnectGraceMs = 15000;
+let joinedOnce = false;
+let lastJoinName = null;
+let reconnectAttempts = 0;
+let reconnectTimer = null;
+let reconnectCountdown = null;
+
 function connectWS() {
   const proto = (location.protocol === 'https:') ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}`);
   ws.addEventListener('open', () => {
+    reconnectAttempts = 0;
+    if (joinedOnce && reconnectToken && !matchEnded) {
+      // Reclaim the held unit instead of spawning a fresh one
+      ws.send(JSON.stringify({ type: 'rejoin', token: reconnectToken }));
+    }
     setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
@@ -1910,10 +1925,24 @@ function _onWSMessage(e) {
     const ch = document.getElementById('crosshair');
     if (ch) {
       ch.classList.add('hit');
+      if (msg.killed) ch.classList.add('kill');
       // Two-stage pop: snap big, then settle back — already hits .hit via CSS for color.
       ch.style.transform = 'translate(-50%, -50%) scale(1.55)';
       setTimeout(() => { ch.style.transform = ''; }, 90);
-      setTimeout(() => ch.classList.remove('hit'), 160);
+      setTimeout(() => { ch.classList.remove('hit'); ch.classList.remove('kill'); }, msg.killed ? 400 : 160);
+    }
+    // Floating damage number near crosshair
+    if (typeof msg.amount === 'number') {
+      const layer = document.getElementById('dmgLayer');
+      if (layer) {
+        const el = document.createElement('div');
+        el.className = msg.killed ? 'dmg-num kill' : 'dmg-num';
+        el.textContent = msg.killed ? `${msg.amount} ☠` : `${msg.amount}`;
+        // Slight random horizontal offset so rapid hits don't stack exactly
+        el.style.marginLeft = `${(Math.random() - 0.5) * 90}px`;
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), 850);
+      }
     }
     return;
   }
@@ -1943,7 +1972,21 @@ function _onWSMessage(e) {
     myId    = msg.playerId;
     mapData = generateMap(msg.seed);
     cfg     = { ...CFG, ...msg.cfg };
-    buildMap(scene, mapData);
+    if (msg.reconnectToken) {
+      reconnectToken = msg.reconnectToken;
+      sessionStorage.setItem('ltown-reconnect-token', reconnectToken);
+    }
+    if (msg.graceMs) reconnectGraceMs = msg.graceMs;
+    joinedOnce = true;
+    hideReconnectOverlay();
+    if (!gameStarted) {
+      buildMap(scene, mapData);
+    }
+    if (msg.rejoined) {
+      // Snap prediction to the held unit's position
+      if (typeof msg.x === 'number') { localPos.x = msg.x; localPos.y = msg.y; localPos.z = msg.z; }
+      addKillFeed('⟳ Reconnected — unit reclaimed', true);
+    }
     showGame();
     return;
   }
@@ -1980,6 +2023,9 @@ function _onWSMessage(e) {
 
   if (msg.type === 'kill') {
     const mine = msg.shooterId === myId;
+    const _kt   = gameState?.players.find(p => p.id === msg.targetId);
+    const _kdist = _kt ? Math.round(Math.sqrt((_kt.x - localPos.x) ** 2 + (_kt.z - localPos.z) ** 2)) : null;
+    const _dtag  = _kdist !== null ? ` · ${_kdist}m` : '';
     if (mine) {
       sndKill();
       // Brief green flash + +100 HP banner
@@ -1993,10 +2039,18 @@ function _onWSMessage(e) {
       document.getElementById('killBoostTimer').textContent = '';
       hud.classList.add('active');
       setTimeout(() => hud.classList.remove('active'), 1800);
+      // Center-screen kill confirm toast: victim + distance + running score
+      const kt = document.getElementById('killToast');
+      if (kt) {
+        const meNow = gameState?.players.find(p => p.id === myId);
+        const score = meNow ? ` · ${meNow.score + 1} KILL${meNow.score + 1 !== 1 ? 'S' : ''}` : '';
+        kt.textContent = `☠ ${msg.targetName}${_dtag}${score}`;
+        kt.classList.remove('show');
+        void kt.offsetWidth;
+        kt.classList.add('show');
+        setTimeout(() => kt.classList.remove('show'), 2000);
+      }
     }
-    const _kt   = gameState?.players.find(p => p.id === msg.targetId);
-    const _kdist = _kt ? Math.round(Math.sqrt((_kt.x - localPos.x) ** 2 + (_kt.z - localPos.z) ** 2)) : null;
-    const _dtag  = _kdist !== null ? ` · ${_kdist}m` : '';
     addKillFeed(`${msg.shooterName} ☠ ${msg.targetName}${_dtag}${mine ? '  +100hp' : ''}`, mine);
     return;
   }
@@ -2047,13 +2101,89 @@ function _onWSMessage(e) {
   }
 
   if (msg.type === 'error') {
+    // Expired reconnect during auto-retry: fall back to a fresh join prompt,
+    // don't spam alerts while the overlay countdown is running.
+    if (String(msg.reason ?? '').startsWith('Reconnect expired')) {
+      hideReconnectOverlay();
+      reconnectToken = null;
+      sessionStorage.removeItem('ltown-reconnect-token');
+      joinedOnce = false;
+      addKillFeed('Session expired — click ENTER ARENA to rejoin.', false);
+      document.getElementById('lobby').style.display = 'grid';
+      document.getElementById('hud')?.classList.remove('visible');
+      return;
+    }
     alert(msg.reason ?? 'Server error');
   }
 }
 
 function _onWSClose() {
-  if (!matchEnded)
+  if (matchEnded) return;
+  // Only auto-reconnect if we had actually joined a match.
+  // Lobby disconnects just show the feed message.
+  if (!joinedOnce || !reconnectToken) {
     addKillFeed('Disconnected from server.', false);
+    return;
+  }
+  addKillFeed('Connection lost — reconnecting…', false);
+  showReconnectOverlay();
+  scheduleReconnect();
+}
+
+function showReconnectOverlay() {
+  const ov = document.getElementById('reconnectOverlay');
+  const count = document.getElementById('reconnectCount');
+  if (!ov) return;
+  ov.classList.add('show');
+  const deadline = Date.now() + reconnectGraceMs;
+  if (reconnectCountdown) clearInterval(reconnectCountdown);
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    if (count) count.textContent = String(left);
+    if (left <= 0) {
+      clearInterval(reconnectCountdown);
+      reconnectCountdown = null;
+      hideReconnectOverlay();
+      addKillFeed('Reconnect window expired — rejoin the arena.', false);
+      // Fresh start: clear the stale token so next join mints a new unit
+      reconnectToken = null;
+      sessionStorage.removeItem('ltown-reconnect-token');
+      joinedOnce = false;
+    }
+  };
+  tick();
+  reconnectCountdown = setInterval(tick, 500);
+}
+
+function hideReconnectOverlay() {
+  document.getElementById('reconnectOverlay')?.classList.remove('show');
+  if (reconnectCountdown) { clearInterval(reconnectCountdown); reconnectCountdown = null; }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  // Exponential backoff: 1s, 2s, 4s… capped at 5s, within the grace window
+  const delay = Math.min(5000, 1000 * Math.pow(2, reconnectAttempts));
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (matchEnded || !joinedOnce || !reconnectToken) return;
+    reconnectAttempts++;
+    connectWS();
+    // If this socket also drops, _onWSClose schedules the next attempt
+    // until the countdown expires the window.
+    scheduleReconnectFallback();
+  }, delay);
+}
+
+function scheduleReconnectFallback() {
+  // Watchdog: if the new socket doesn't open within 6s, try again.
+  setTimeout(() => {
+    if (ws && ws.readyState !== WebSocket.OPEN && joinedOnce && reconnectToken && !matchEnded) {
+      try { ws.close(); } catch {}
+      scheduleReconnect();
+    }
+  }, 6000);
 }
 
 // ─── POINTER LOCK ─────────────────────────────────────────────────────────────
@@ -2190,6 +2320,7 @@ let gameStarted = false;
 
 document.getElementById('joinBtn').addEventListener('click', () => {
   const name = document.getElementById('nameInput').value.trim() || 'Anonymous';
+  lastJoinName = name;
   // Start Three.js and request pointer lock now, while the user gesture is active.
   // This avoids the SecurityError that occurs when requestPointerLock() is called
   // from an async WebSocket message handler (no user gesture present).

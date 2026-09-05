@@ -376,6 +376,119 @@ canvas {
   box-shadow: 0 0 8px #ff6a00, 0 0 2px #fff;
 }
 
+/* Kill shot — red X flash on the crosshair */
+.crosshair.kill::before,
+.crosshair.kill::after {
+  background: #ff2244;
+  box-shadow: 0 0 12px #ff2244, 0 0 4px #fff;
+}
+
+/* ─── DAMAGE NUMBERS + KILL TOAST ─────────────────────────────────────────── */
+#dmgLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  overflow: hidden;
+}
+
+.dmg-num {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: #ffd040;
+  text-shadow: 0 0 10px rgba(255, 180, 40, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8);
+  animation: dmgFloat 0.8s ease-out forwards;
+  white-space: nowrap;
+}
+
+.dmg-num.kill {
+  color: #ff4455;
+  font-size: 1.7rem;
+  text-shadow: 0 0 14px rgba(255, 40, 60, 0.9), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes dmgFloat {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  15%  { opacity: 1; transform: translate(-50%, -10px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -70px) scale(0.9); }
+}
+
+#killToast {
+  display: none;
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  pointer-events: none;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(255, 40, 60, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8);
+  background: rgba(30, 5, 10, 0.8);
+  border: 1px solid rgba(255, 40, 60, 0.5);
+  border-radius: 12px;
+  padding: 8px 28px;
+  white-space: nowrap;
+}
+
+#killToast.show {
+  display: block;
+  animation: killToastPop 2s ease forwards;
+}
+
+@keyframes killToastPop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  12%  { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  20%  { transform: translateX(-50%) scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* ─── RECONNECT OVERLAY ───────────────────────────────────────────────────── */
+#reconnectOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.6);
+  justify-content: center;
+  align-items: center;
+}
+
+#reconnectOverlay.show { display: flex; }
+
+#reconnectBox { text-align: center; pointer-events: none; }
+
+#reconnectLabel {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--super);
+  text-shadow: 0 0 24px rgba(246, 187, 66, 0.6);
+  margin-bottom: 12px;
+}
+
+#reconnectCount {
+  font-size: 4rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+#reconnectSub {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.08em;
+}
+
 /* ─── CHAT ──────────────────────────────────────────────────────────────────── */
 #chatWrap {
   position: absolute;
