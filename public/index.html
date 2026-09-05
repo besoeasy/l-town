@@ -22,12 +22,10 @@
 
   <!-- ─── LOBBY ─────────────────────────────────────────────────────────── -->
   <div id="lobby" class="lobby-overlay">
-    <canvas id="lobbyBg"></canvas>
-
     <div class="lobby-header">
-      <div class="lobby-logo">⚡</div>
+      <div class="lobby-logo">🤖</div>
       <div class="lobby-title">L-TOWN</div>
-      <div class="lobby-sub">Solo arena · 10 min · highest score wins · top 3 claim victory</div>
+      <div class="lobby-sub">Same RX-11 chassis · pick your nuclear core · 10 min arena</div>
       <a id="githubBadge" href="https://github.com/besoeasy/l-town" target="_blank" rel="noopener noreferrer" title="View source on GitHub">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         Open Source · github.com/besoeasy/l-town
@@ -40,163 +38,29 @@
     </div>
 
     <div class="lobby-char-section">
-      <div class="lobby-section-label">── SELECT YOUR ABILITY ──</div>
-      <div class="char-cards">
-
-        <div class="char-card selected" data-char="telepotu">
-          <div class="char-icon">⚡</div>
-          <div class="char-name">TELEPOTU</div>
-          <div class="char-badge">WARP</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Class Ability [Q]</div>
-            <div class="char-tooltip-desc">Instantly swap positions with a random enemy anywhere on the map</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
+      <div class="lobby-section-label">── SELECT YOUR NUCLEAR CORE ──</div>
+      <div class="lobby-chassis-note">🤖 RX-11 chassis — same body for everyone · core defines your power</div>
+      <div class="core-layout">
+        <div class="char-cards">
+          <button class="char-card selected" data-char="telepotu"><span class="char-icon">⚡</span><span class="char-name">TELEPOTU</span><span class="char-badge">WARP</span></button>
+          <button class="char-card" data-char="chumantr"><span class="char-icon">👻</span><span class="char-name">CHUMANTR</span><span class="char-badge">STEALTH</span></button>
+          <button class="char-card" data-char="denja"><span class="char-icon">🔥</span><span class="char-name">DENJA</span><span class="char-badge">PASSIVE</span></button>
+          <button class="char-card" data-char="mednix"><span class="char-icon">💊</span><span class="char-name">MEDNIX</span><span class="char-badge">SURGE</span></button>
+          <button class="char-card" data-char="tank"><span class="char-icon">🛡</span><span class="char-name">TANK</span><span class="char-badge">PASSIVE</span></button>
+          <button class="char-card" data-char="anchor"><span class="char-icon">⚓</span><span class="char-name">ANCHOR</span><span class="char-badge">PASSIVE</span></button>
+          <button class="char-card" data-char="surge"><span class="char-icon">🌀</span><span class="char-name">SURGE</span><span class="char-badge">DRAIN</span></button>
+          <button class="char-card" data-char="jinx"><span class="char-icon">💀</span><span class="char-name">JINX</span><span class="char-badge">PASSIVE</span></button>
+          <button class="char-card" data-char="gambler"><span class="char-icon">🎲</span><span class="char-name">GAMBLER</span><span class="char-badge">CHAOS</span></button>
+          <button class="char-card" data-char="parasite"><span class="char-icon">🧫</span><span class="char-name">PARASITE</span><span class="char-badge">PASSIVE</span></button>
+          <button class="char-card" data-char="berserker"><span class="char-icon">🔴</span><span class="char-name">BERSERKER</span><span class="char-badge">PASSIVE</span></button>
         </div>
-
-        <div class="char-card" data-char="chumantr">
-          <div class="char-icon">👻</div>
-          <div class="char-name">CHUMANTR</div>
-          <div class="char-badge">STEALTH</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Class Ability [Q]</div>
-            <div class="char-tooltip-desc">Vanish completely for 10 seconds — cannot shoot while cloaked</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
+        <div id="coreDetail" class="core-detail">
+          <div class="core-detail-head"><span id="coreDetailIcon">⚡</span><div><div id="coreDetailName">TELEPOTU CORE</div><div id="coreDetailType">ACTIVE · press Q · 60s cooldown</div></div></div>
+          <p id="coreDetailDesc"></p>
+          <div id="coreDetailSpecs" class="core-specs"></div>
+          <div class="core-stats"><div><span>Speed</span><div class="stat-bar"><span id="coreSpeedBar"></span></div></div><div><span>Hull</span><div class="stat-bar"><span id="coreHpBar"></span></div></div><div><span>Difficulty</span><div class="stat-bar"><span id="coreDiffBar"></span></div></div></div>
+          <div id="coreDetailTip" class="core-tip"></div>
         </div>
-
-        <div class="char-card" data-char="denja">
-          <div class="char-icon">🔥</div>
-          <div class="char-name">DENJA</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">Move at 2× speed — max health permanently capped at 75%</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:100%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:75%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="mednix">
-          <div class="char-icon">💊</div>
-          <div class="char-name">MEDNIX</div>
-          <div class="char-badge">SURGE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Class Ability [Q]</div>
-            <div class="char-tooltip-desc">Instantly restore 1–50 random energy — luck decides how much you get</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="tank">
-          <div class="char-icon">🛡</div>
-          <div class="char-name">TANK</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">Double max HP but permanently half movement speed</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:30%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%; background:linear-gradient(90deg,#49a7ff,#74f0c6)"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="anchor">
-          <div class="char-icon">⚓</div>
-          <div class="char-name">ANCHOR</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">SUPER and SHIELD cost 50% less HP — no active ability</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="surge">
-          <div class="char-icon">🌀</div>
-          <div class="char-name">SURGE</div>
-          <div class="char-badge">DRAIN</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Class Ability [Q]</div>
-            <div class="char-tooltip-desc">Drain 30 HP from the nearest enemy within 40 units and absorb it as your own</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="jinx">
-          <div class="char-icon">💀</div>
-          <div class="char-name">JINX</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">Death Curse — when killed, the player who killed you instantly loses 80 HP</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="gambler">
-          <div class="char-icon">🎲</div>
-          <div class="char-name">GAMBLER</div>
-          <div class="char-badge">CHAOS</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Class Ability [Q]</div>
-            <div class="char-tooltip-desc">Roll the dice — equal chance of: +200 HP · teleport onto a random enemy · instant death</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="parasite">
-          <div class="char-icon">🧫</div>
-          <div class="char-name">PARASITE</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">Drain 3 HP/s from every enemy within 15 units — slightly slower movement</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:50%"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="char-card" data-char="berserker">
-          <div class="char-icon">🔴</div>
-          <div class="char-name">BERSERKER</div>
-          <div class="char-badge">PASSIVE</div>
-          <div class="char-tooltip">
-            <div class="char-tooltip-title">Passive Ability</div>
-            <div class="char-tooltip-desc">Speed and damage scale up to 2.5× as HP drops — most dangerous when nearly dead</div>
-            <div class="char-tooltip-stats">
-              <span>Speed</span><span class="stat-bar"><span style="width:65%; background:linear-gradient(90deg,#ff4444,#ff8800)"></span></span>
-              <span>HP</span><span class="stat-bar"><span style="width:100%"></span></span>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
 
@@ -369,92 +233,6 @@
     </div>
   </div>
 
-  <script>
-    // ── Lobby animated background ────────────────────────────────────────────
-    (function () {
-      const canvas = document.getElementById('lobbyBg');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-
-      let W, H, particles, lines;
-
-      function resize() {
-        W = canvas.width  = canvas.offsetWidth;
-        H = canvas.height = canvas.offsetHeight;
-        init();
-      }
-
-      function rand(min, max) { return min + Math.random() * (max - min); }
-
-      function init() {
-        const count = Math.floor((W * H) / 14000);
-        particles = Array.from({ length: count }, () => ({
-          x: rand(0, W), y: rand(0, H),
-          vx: rand(-0.18, 0.18), vy: rand(-0.18, 0.18),
-          r: rand(1.2, 2.8),
-          alpha: rand(0.3, 0.9),
-          pulse: rand(0, Math.PI * 2),
-          pulseSpeed: rand(0.008, 0.022),
-        }));
-      }
-
-      function draw(ts) {
-        ctx.clearRect(0, 0, W, H);
-
-        // Draw connecting lines between nearby particles
-        for (let i = 0; i < particles.length; i++) {
-          for (let j = i + 1; j < particles.length; j++) {
-            const a = particles[i], b = particles[j];
-            const dx = a.x - b.x, dy = a.y - b.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 130) {
-              const opacity = (1 - dist / 130) * 0.18;
-              ctx.beginPath();
-              ctx.moveTo(a.x, a.y);
-              ctx.lineTo(b.x, b.y);
-              ctx.strokeStyle = `rgba(116,240,198,${opacity})`;
-              ctx.lineWidth = 0.6;
-              ctx.stroke();
-            }
-          }
-        }
-
-        // Draw particles
-        for (const p of particles) {
-          p.pulse += p.pulseSpeed;
-          const pulseAlpha = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
-
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(116,240,198,${pulseAlpha})`;
-          ctx.fill();
-
-          // Soft glow
-          const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
-          grd.addColorStop(0, `rgba(116,240,198,${pulseAlpha * 0.35})`);
-          grd.addColorStop(1, 'rgba(116,240,198,0)');
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
-          ctx.fillStyle = grd;
-          ctx.fill();
-
-          // Move
-          p.x += p.vx;
-          p.y += p.vy;
-          if (p.x < 0) p.x = W;
-          if (p.x > W) p.x = 0;
-          if (p.y < 0) p.y = H;
-          if (p.y > H) p.y = 0;
-        }
-
-        requestAnimationFrame(draw);
-      }
-
-      window.addEventListener('resize', resize);
-      resize();
-      requestAnimationFrame(draw);
-    })();
-  </script>
   <script type="module" src="game.js"></script>
 </body>
 </html>

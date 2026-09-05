@@ -2211,14 +2211,81 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   }
 });
 
+// Core selector — same RX-11 chassis, nuclear core defines the power.
+// Numbers match server.js exactly.
+const CORE_INFO = {
+  telepotu: { icon: '⚡', name: 'TELEPOTU CORE', tag: 'WARP', type: 'ACTIVE · press Q · 60s cooldown',
+    desc: 'Swap positions with a random living enemy anywhere on the map. Best escape or ambush tool in the game.',
+    specs: [['Effect', 'Swap positions'], ['Range', 'Global'], ['Cooldown', '60s'], ['Needs target', 'Yes — 1+ enemy alive']],
+    speed: 65, hp: 100, diff: 40, tip: 'Tip: fire a charged shot, then warp away before they can react.' },
+  chumantr: { icon: '👻', name: 'CHUMANTR CORE', tag: 'STEALTH', type: 'ACTIVE · press Q · 30s cooldown',
+    desc: 'Vanish completely for 10 seconds. You cannot shoot while cloaked — use it to reposition or escape.',
+    specs: [['Effect', 'Invisible 10s'], ['Cooldown', '30s'], ['Can shoot', 'No'], ['Ends on', 'Timer only']],
+    speed: 65, hp: 100, diff: 55, tip: 'Tip: cloak, walk behind cover, then decloak next to a weak enemy.' },
+  denja: { icon: '🔥', name: 'DENJA CORE', tag: 'OVERCLOCK', type: 'PASSIVE · always on',
+    desc: 'Overclocked servos run at 2× speed permanently. Reactor is unstable — hull capped at 50% max.',
+    specs: [['Speed', '2× (18 u/s)'], ['Max hull', '250 (50%)'], ['Respawn hull', '187'], ['Ability key', 'None — passive']],
+    speed: 100, hp: 50, diff: 60, tip: 'Tip: you win by dodging, not trading. Never stand still.' },
+  mednix: { icon: '💊', name: 'MEDNIX CORE', tag: 'SURGE', type: 'ACTIVE · press Q · 20s cooldown',
+    desc: 'Emergency repair surge restores 1–50 hull instantly. Luck decides how much you get.',
+    specs: [['Effect', '+1 to +50 hull'], ['Cooldown', '20s'], ['Overheal', 'No — capped at max'], ['Best used', 'Right after a trade']],
+    speed: 65, hp: 100, diff: 25, tip: 'Tip: shortest cooldown in the game — press Q the moment it lights up.' },
+  tank: { icon: '🛡', name: 'TANK CORE', tag: 'BULWARK', type: 'PASSIVE · always on',
+    desc: 'Heavy plating doubles max hull to 1000 but servos run at half speed. A walking fortress.',
+    specs: [['Max hull', '1000 (2×)'], ['Speed', '0.5× (4.5 u/s)'], ['Respawn hull', '750'], ['Ability key', 'None — passive']],
+    speed: 30, hp: 100, diff: 20, tip: 'Tip: hold angles and let enemies come to you. You win every trade.' },
+  anchor: { icon: '⚓', name: 'ANCHOR CORE', tag: 'EFFICIENT', type: 'PASSIVE · always on',
+    desc: 'Efficient reactor cuts SUPER and SHIELD hull costs by 50%. No active ability — pure economy.',
+    specs: [['SUPER cost', '25 (was 50)'], ['SHIELD cost', '40 (was 80)'], ['SHIELD cooldown', '15s'], ['Ability key', 'None — passive']],
+    speed: 65, hp: 100, diff: 30, tip: 'Tip: pop SUPER and SHIELD twice as often as anyone else.' },
+  surge: { icon: '🌀', name: 'SURGE CORE', tag: 'DRAIN', type: 'ACTIVE · press Q · 25s cooldown',
+    desc: 'Siphon 30 hull from the nearest enemy within 40 units and absorb it. Never kills — leaves them at 1.',
+    specs: [['Effect', 'Drain 30 hull'], ['Range', '40 units'], ['Cooldown', '25s'], ['Kill?', 'No — leaves 1 HP']],
+    speed: 65, hp: 100, diff: 45, tip: 'Tip: drain, then finish with one shot while they panic.' },
+  jinx: { icon: '💀', name: 'JINX CORE', tag: 'CURSE', type: 'PASSIVE · triggers on death',
+    desc: 'Death curse: whoever kills you instantly loses 80 hull — even if it kills them back.',
+    specs: [['Effect', '-80 hull to killer'], ['Trigger', 'On death'], ['Cooldown', 'None'], ['Suicide', 'No curse']],
+    speed: 65, hp: 100, diff: 35, tip: 'Tip: play aggressive — every death punishes your killer.' },
+  gambler: { icon: '🎲', name: 'GAMBLER CORE', tag: 'CHAOS', type: 'ACTIVE · press Q · 45s cooldown',
+    desc: 'Roll the reactor dice: ⅓ chance +200 hull, ⅓ teleport onto a random enemy, ⅓ instant death.',
+    specs: [['Heal', '+200 (⅓)'], ['Teleport', 'Onto enemy (⅓)'], ['Death', 'Instant (⅓)'], ['Cooldown', '45s']],
+    speed: 65, hp: 100, diff: 90, tip: 'Tip: only roll when you are already losing — nothing to lose.' },
+  parasite: { icon: '🧫', name: 'PARASITE CORE', tag: 'LEECH', type: 'PASSIVE · always on',
+    desc: 'Leech field drains 3 hull/s from every enemy within 15 units and feeds it to you. Slightly slower (0.8×).',
+    specs: [['Effect', '3 hull/s per enemy'], ['Range', '15 units'], ['Speed', '0.8× (7.2 u/s)'], ['Can kill', 'Yes — earns score']],
+    speed: 50, hp: 100, diff: 50, tip: 'Tip: hug groups — the more enemies near you, the faster you heal.' },
+  berserker: { icon: '🔴', name: 'BERSERKER CORE', tag: 'RAGE', type: 'PASSIVE · scales with damage',
+    desc: 'Rage reactor: speed and bullet damage scale up to 2.5× as hull drops. Most dangerous when nearly dead.',
+    specs: [['Damage', '1× → 2.5×'], ['Speed', '1× → 2.5×'], ['Trigger', 'Low hull'], ['Ability key', 'None — passive']],
+    speed: 65, hp: 100, diff: 70, tip: 'Tip: stay at low hull on purpose — you outgun everyone below 100 HP.' },
+};
+
+function renderCoreDetail(char) {
+  const info = CORE_INFO[char];
+  if (!info) return;
+  document.getElementById('coreDetailIcon').textContent = info.icon;
+  document.getElementById('coreDetailName').textContent = info.name;
+  document.getElementById('coreDetailType').textContent = info.type;
+  document.getElementById('coreDetailDesc').textContent = info.desc;
+  document.getElementById('coreDetailSpecs').innerHTML = info.specs.map(([k, v]) =>
+    `<div class="core-spec-row"><span>${k}</span><span>${v}</span></div>`).join('');
+  document.getElementById('coreSpeedBar').style.width = `${info.speed}%`;
+  document.getElementById('coreHpBar').style.width = `${info.hp}%`;
+  document.getElementById('coreDiffBar').style.width = `${info.diff}%`;
+  document.getElementById('coreDetailTip').textContent = info.tip;
+}
+
 // Character card selection
 document.querySelectorAll('.char-card').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
     localCharacter = card.dataset.char;
+    renderCoreDetail(localCharacter);
   });
+  card.addEventListener('mouseenter', () => renderCoreDetail(card.dataset.char));
 });
+renderCoreDetail(localCharacter);
 
 document.getElementById('nameInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('joinBtn').click();
