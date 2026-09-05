@@ -1,8 +1,23 @@
-## Game Lore
+# L-TOWN — Lore
 
-1. Set in Year 3049
-2. We control robot using neura link. 
-3. each robot is same.
-4. robot is powered by core, called atma core.
-5. atma core - gives energy, and few abilitis, since each core was created by different, people, organisation.
-6. this is a fun game, where the new technogology is tested, before sending them to other planets, since human no longer visit planets, 
+## Year 3049
+
+Humanity no longer visits planets in person. Exploration is done remotely.
+
+## Neural Link
+
+Operators control robots via neural link from orbit.
+
+## The Robot
+
+Every unit is the same RX-11 chassis. No variants. No upgrades.
+
+## The Atma Core
+
+Each robot is powered by an Atma Core. The core provides energy and abilities.
+
+Each core was built by a different person or organisation. That origin defines its power.
+
+## The Game
+
+L-Town is a public test arena. New core technology is trialed in combat before deployment to other planets.
