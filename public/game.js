@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { makePRNG } from './modules/utls.js';
 import { generateMap, buildMap } from './modules/map.js';
 import { CFG } from './modules/cfg.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+import { Sky }             from 'three/addons/objects/Sky.js';
 
 // ─── AUDIO ───────────────────────────────────────────────────────────────────
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -149,7 +154,9 @@ function safeSend(obj) {
 connectWS();
 
 // ─── THREE.JS ─────────────────────────────────────────────────────────────────
-let scene, camera, renderer;
+let scene, camera, renderer, composer;
+let _bloomPass = null;
+const cloudMeshes = [];
 const playerMeshes  = new Map(); // id → THREE.Group
 const playerPrevPos = new Map(); // id → {x,z} for movement detection
 
@@ -239,9 +246,8 @@ let lastInputSent = 0;
 
 // ─── THREE.JS INIT ────────────────────────────────────────────────────────────
 function initScene() {
-  const SKY = 0x4a85c0; // realistic sky blue
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(SKY);
+  // No solid background — procedural Sky mesh handles it
   scene.fog = new THREE.FogExp2(0x7ab0d0, 0.00055); // atmospheric depth haze
 
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 1800);
@@ -253,27 +259,43 @@ function initScene() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 0.85;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  // Sky / ground hemisphere — daylight blue sky, natural ground bounce
-  const hemi = new THREE.HemisphereLight(0xadd0e8, 0x3a5820, 0.9);
+  // ── Procedural sky (Preetham atmospheric model) ─────────────────────────────
+  const sky = new Sky();
+  sky.scale.setScalar(10000);
+  scene.add(sky);
+  const skyU = sky.material.uniforms;
+  skyU['turbidity'].value       = 8;
+  skyU['rayleigh'].value        = 2.5;
+  skyU['mieCoefficient'].value  = 0.005;
+  skyU['mieDirectionalG'].value = 0.82;
+  // Afternoon sun direction
+  const sunDir = new THREE.Vector3();
+  sunDir.setFromSphericalCoords(1,
+    THREE.MathUtils.degToRad(85),   // elevation ≈ 5° above horizon — golden hour
+    THREE.MathUtils.degToRad(220)); // south-west azimuth
+  skyU['sunPosition'].value.copy(sunDir);
+
+  // Sky / ground hemisphere — dim ambient fill
+  const hemi = new THREE.HemisphereLight(0xadd0e8, 0x3a5820, 0.4);
   scene.add(hemi);
 
-  // Main sun — high afternoon angle, natural white
-  const sun = new THREE.DirectionalLight(0xfff5e8, 2.0);
-  sun.position.set(80, 120, -60);
+  // Main sun — soft, not harsh
+  const sun = new THREE.DirectionalLight(0xfff5e8, 0.7);
+  sun.position.copy(sunDir).multiplyScalar(120);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(4096, 4096);
   sun.shadow.bias = -0.0002;
   sun.shadow.camera.near  = 0.5;
-  sun.shadow.camera.far   = 840;
-  sun.shadow.camera.left  = sun.shadow.camera.bottom = -435;
-  sun.shadow.camera.right = sun.shadow.camera.top    =  435;
+  sun.shadow.camera.far   = 900;
+  sun.shadow.camera.left  = sun.shadow.camera.bottom = -450;
+  sun.shadow.camera.right = sun.shadow.camera.top    =  450;
   scene.add(sun);
 
-  // Soft blue fill from opposite side
-  const rim = new THREE.DirectionalLight(0x88b4d8, 0.3);
+  // Subtle fill from opposite side
+  const rim = new THREE.DirectionalLight(0x88b4d8, 0.15);
   rim.position.set(-60, 40, 60);
   scene.add(rim);
 
@@ -293,12 +315,55 @@ function initScene() {
   ring.rotation.x = Math.PI * 0.28;
   scene.add(ring);
 
+  // ── Animated cloud layer ─────────────────────────────────────────────────────
+  const cloudPalette = [0xffffff, 0xf4f4ff, 0xe8eff8];
+  for (let i = 0; i < 24; i++) {
+    const cw  = 90 + Math.random() * 200;
+    const ch  = 22 + Math.random() * 55;
+    const cMat = new THREE.MeshLambertMaterial({
+      color:       cloudPalette[Math.floor(Math.random() * cloudPalette.length)],
+      transparent: true,
+      opacity:     0.22 + Math.random() * 0.28,
+      depthWrite:  false,
+      fog:         false,
+    });
+    const cMesh = new THREE.Mesh(new THREE.PlaneGeometry(cw, ch), cMat);
+    cMesh.position.set(
+      (Math.random() - 0.5) * 900,
+      85 + Math.random() * 80,
+      (Math.random() - 0.5) * 900
+    );
+    cMesh.rotation.x = -Math.PI / 2;
+    cMesh.rotation.z = Math.random() * Math.PI;
+    cMesh.userData.driftX = (0.4 + Math.random() * 1.6) * (Math.random() < 0.5 ? 1 : -1);
+    cMesh.userData.driftZ = (0.2 + Math.random() * 0.8) * (Math.random() < 0.5 ? 1 : -1);
+    scene.add(cMesh);
+    cloudMeshes.push(cMesh);
+  }
+
+  // ── Post-processing: Bloom ──────────────────────────────────────────────────
+  // Replaces plain renderer.render — all emissive elements now physically glow.
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+
+  _bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(innerWidth, innerHeight),
+    0.45,  // strength  — subtle; only emissive elements get a visible halo
+    0.30,  // radius    — tight halo, not a wide fog
+    0.55   // threshold — high: only truly bright emissive pixels bloom (visor, reactor, tracers)
+  );
+  composer.addPass(_bloomPass);
+  composer.addPass(new OutputPass());
+
   window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+    composer.setSize(innerWidth, innerHeight);
+    if (_bloomPass) _bloomPass.resolution.set(innerWidth, innerHeight);
   });
 }
+
 
 // ─── PROCEDURAL MAP GENERATION (mirrors server.js — seed keeps them in sync) ─
 // `generateMap` is provided by `./modules/map.js` and imported at top
@@ -315,259 +380,318 @@ function getPlayerColor(id) { return COLORS[(id - 1) % COLORS.length]; }
 function buildHumanoid(color) {
   const group = new THREE.Group();
 
-  // ── Material palette ────────────────────────────────────────────────────
-  const matColor  = new THREE.MeshStandardMaterial({ color, metalness: 0.7, roughness: 0.3 });
-  const matArmor  = new THREE.MeshStandardMaterial({ color: 0x1c2b3a, metalness: 0.8, roughness: 0.25 });
-  const matDark   = new THREE.MeshStandardMaterial({ color: 0x090e14, metalness: 0.9, roughness: 0.2 });
-  const matMid    = new THREE.MeshStandardMaterial({ color: 0x243040, metalness: 0.75, roughness: 0.3 });
-  const matVisor  = new THREE.MeshStandardMaterial({
-    color: 0x66ddff, emissive: new THREE.Color(0x0077aa),
-    emissiveIntensity: 4, metalness: 0.1, roughness: 0.05,
-    transparent: true, opacity: 0.92,
+  // ── Material palette ─────────────────────────────────────────────────────
+  const matBase    = new THREE.MeshStandardMaterial({ color: 0x151e28, metalness: 0.88, roughness: 0.14 });
+  const matArmor   = new THREE.MeshStandardMaterial({ color: 0x1e2d3e, metalness: 0.82, roughness: 0.20 });
+  const matPanel   = new THREE.MeshStandardMaterial({ color: 0x263545, metalness: 0.75, roughness: 0.28 });
+  const matDark    = new THREE.MeshStandardMaterial({ color: 0x080c12, metalness: 0.92, roughness: 0.12 });
+  const matAccent  = new THREE.MeshStandardMaterial({ color, metalness: 0.65, roughness: 0.22 });
+  const matVisor   = new THREE.MeshStandardMaterial({
+    color: 0x55ddff, emissive: new THREE.Color(0x009fcc),
+    emissiveIntensity: 5.5, metalness: 0.05, roughness: 0.02,
+    transparent: true, opacity: 0.94,
   });
-  const matGlow   = new THREE.MeshStandardMaterial({
+  const matGlow    = new THREE.MeshStandardMaterial({
     color, emissive: new THREE.Color(color),
-    emissiveIntensity: 2.5, metalness: 0.4, roughness: 0.2,
+    emissiveIntensity: 4.0, metalness: 0.3, roughness: 0.15,
   });
   const matReactor = new THREE.MeshStandardMaterial({
     color: 0xffffff, emissive: new THREE.Color(color),
-    emissiveIntensity: 5, metalness: 0.0, roughness: 0.0,
-    transparent: true, opacity: 0.95,
+    emissiveIntensity: 7, transparent: true, opacity: 0.96,
   });
 
   function box(w, h, d, ox, oy, oz, m, rx = 0, ry = 0, rz = 0) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? matArmor);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
     mesh.position.set(ox, oy, oz);
     mesh.rotation.set(rx, ry, rz);
     mesh.castShadow = true;
     group.add(mesh);
     return mesh;
   }
-
   function cyl(rt, rb, h, ox, oy, oz, m, segs = 8, rx = 0, ry = 0, rz = 0) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segs), m ?? matArmor);
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segs), m);
     mesh.position.set(ox, oy, oz);
     mesh.rotation.set(rx, ry, rz);
     mesh.castShadow = true;
     group.add(mesh);
     return mesh;
   }
+  function sph(r, ox, oy, oz, m, segs = 10) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, segs, segs), m);
+    mesh.position.set(ox, oy, oz);
+    mesh.castShadow = true;
+    group.add(mesh);
+    return mesh;
+  }
 
-  // ── FEET / BOOTS ────────────────────────────────────────────────────────
-  // Sole platform (flat wide)
-  box(0.22, 0.05, 0.32, -0.145, 0.025,  0.02, matDark);
-  box(0.22, 0.05, 0.32,  0.145, 0.025,  0.02, matDark);
-  // Boot ankle box
-  box(0.20, 0.16, 0.22, -0.145, 0.10,  0.00, matArmor);
-  box(0.20, 0.16, 0.22,  0.145, 0.10,  0.00, matArmor);
-  // Boot toe cap (color)
-  box(0.18, 0.09, 0.08, -0.145, 0.065, -0.12, matColor);
-  box(0.18, 0.09, 0.08,  0.145, 0.065, -0.12, matColor);
-  // Heel spike
-  box(0.06, 0.08, 0.04, -0.145, 0.055,  0.14, matDark);
-  box(0.06, 0.08, 0.04,  0.145, 0.055,  0.14, matDark);
+  // ══ BOOTS ════════════════════════════════════════════════════════════════
+  // Thick armored sole
+  box(0.25, 0.07, 0.36, -0.160, 0.035, 0.01, matDark);
+  box(0.25, 0.07, 0.36,  0.160, 0.035, 0.01, matDark);
+  // Boot body — angular, modern
+  box(0.22, 0.24, 0.28, -0.160, 0.155, 0.00, matArmor);
+  box(0.22, 0.24, 0.28,  0.160, 0.155, 0.00, matArmor);
+  // Angled toe cap (accent)
+  box(0.20, 0.13, 0.11, -0.160, 0.100, -0.148, matAccent, -0.18, 0, 0);
+  box(0.20, 0.13, 0.11,  0.160, 0.100, -0.148, matAccent, -0.18, 0, 0);
+  // Heel spur
+  box(0.12, 0.09, 0.06, -0.160, 0.085,  0.170, matPanel);
+  box(0.12, 0.09, 0.06,  0.160, 0.085,  0.170, matPanel);
+  // Side vent slits
+  box(0.045, 0.09, 0.16, -0.224, 0.135, 0.00, matDark);
+  box(0.045, 0.09, 0.16,  0.224, 0.135, 0.00, matDark);
+  // Boot glow strip along toe
+  box(0.030, 0.020, 0.10, -0.160, 0.065, -0.155, matGlow);
+  box(0.030, 0.020, 0.10,  0.160, 0.065, -0.155, matGlow);
 
-  // ── LOWER LEGS (shin) ───────────────────────────────────────────────────
-  // Main shin cylinder — sleek
-  const legL = cyl(0.085, 0.095, 0.42, -0.145, 0.385, 0, matArmor, 8);
-  const legR = cyl(0.085, 0.095, 0.42,  0.145, 0.385, 0, matArmor, 8);
+  // ══ LOWER LEGS (shins) ═══════════════════════════════════════════════════
+  const legL = cyl(0.092, 0.102, 0.45, -0.160, 0.430, 0, matArmor, 8);
+  const legR = cyl(0.092, 0.102, 0.45,  0.160, 0.430, 0, matArmor, 8);
   group.userData.legL = legL;
   group.userData.legR = legR;
-  // Shin front plate (color)
-  box(0.11, 0.24, 0.04, -0.145, 0.37, -0.09, matColor);
-  box(0.11, 0.24, 0.04,  0.145, 0.37, -0.09, matColor);
-  // Shin glow strip
-  box(0.03, 0.16, 0.02, -0.145, 0.34, -0.115, matGlow);
-  box(0.03, 0.16, 0.02,  0.145, 0.34, -0.115, matGlow);
-  // Calf fin pair
-  box(0.02, 0.14, 0.10, -0.205, 0.33,  0.07, matMid, 0, 0, 0.18);
-  box(0.02, 0.14, 0.10,  0.205, 0.33,  0.07, matMid, 0, 0,-0.18);
+  // Shin front guard (accent color, chamfered look via rotation)
+  box(0.135, 0.30, 0.055, -0.160, 0.415, -0.105, matAccent);
+  box(0.135, 0.30, 0.055,  0.160, 0.415, -0.105, matAccent);
+  // Shin panel inset
+  box(0.085, 0.20, 0.040, -0.160, 0.415, -0.128, matBase);
+  box(0.085, 0.20, 0.040,  0.160, 0.415, -0.128, matBase);
+  // Shin glow stripe
+  box(0.038, 0.22, 0.026, -0.160, 0.400, -0.133, matGlow);
+  box(0.038, 0.22, 0.026,  0.160, 0.400, -0.133, matGlow);
+  // Calf swept fin
+  box(0.026, 0.18, 0.13, -0.222, 0.370, 0.065, matPanel, 0, 0, 0.14);
+  box(0.026, 0.18, 0.13,  0.222, 0.370, 0.065, matPanel, 0, 0,-0.14);
 
-  // ── KNEES ───────────────────────────────────────────────────────────────
-  cyl(0.11, 0.11, 0.08, -0.145, 0.595, 0, matMid, 10);
-  cyl(0.11, 0.11, 0.08,  0.145, 0.595, 0, matMid, 10);
-  // Knee cap (color plate)
-  box(0.13, 0.07, 0.06, -0.145, 0.60, -0.08, matColor);
-  box(0.13, 0.07, 0.06,  0.145, 0.60, -0.08, matColor);
+  // ══ KNEES ════════════════════════════════════════════════════════════════
+  cyl(0.118, 0.118, 0.095, -0.160, 0.652, 0, matPanel, 10);
+  cyl(0.118, 0.118, 0.095,  0.160, 0.652, 0, matPanel, 10);
+  // Knee cap (player accent)
+  box(0.145, 0.085, 0.075, -0.160, 0.652, -0.098, matAccent);
+  box(0.145, 0.085, 0.075,  0.160, 0.652, -0.098, matAccent);
+  // Knee side guards
+  box(0.045, 0.045, 0.045, -0.234, 0.652, -0.055, matDark);
+  box(0.045, 0.045, 0.045,  0.234, 0.652, -0.055, matDark);
+  // Knee glow pip
+  box(0.030, 0.030, 0.030, -0.160, 0.652, -0.138, matGlow);
+  box(0.030, 0.030, 0.030,  0.160, 0.652, -0.138, matGlow);
 
-  // ── THIGHS ──────────────────────────────────────────────────────────────
-  cyl(0.105, 0.09, 0.35, -0.145, 0.82, 0, matArmor, 8);
-  cyl(0.105, 0.09, 0.35,  0.145, 0.82, 0, matArmor, 8);
-  // Thigh front armor plate (angled, color)
-  box(0.14, 0.22, 0.05, -0.145, 0.83, -0.10, matColor, -0.12, 0, 0);
-  box(0.14, 0.22, 0.05,  0.145, 0.83, -0.10, matColor, -0.12, 0, 0);
-  // Outer thigh pad
-  box(0.04, 0.18, 0.14, -0.235, 0.83,  0.00, matMid);
-  box(0.04, 0.18, 0.14,  0.235, 0.83,  0.00, matMid);
+  // ══ THIGHS ═══════════════════════════════════════════════════════════════
+  cyl(0.120, 0.105, 0.40, -0.160, 0.905, 0, matArmor, 8);
+  cyl(0.120, 0.105, 0.40,  0.160, 0.905, 0, matArmor, 8);
+  // Thigh front plate (angled, accent)
+  box(0.155, 0.26, 0.058, -0.160, 0.910, -0.116, matAccent, -0.10, 0, 0);
+  box(0.155, 0.26, 0.058,  0.160, 0.910, -0.116, matAccent, -0.10, 0, 0);
+  // Thigh panel inset
+  box(0.095, 0.16, 0.042, -0.160, 0.912, -0.140, matBase);
+  box(0.095, 0.16, 0.042,  0.160, 0.912, -0.140, matBase);
+  // Outer thigh armored pad
+  box(0.052, 0.22, 0.18, -0.258, 0.905, 0.00, matPanel);
+  box(0.052, 0.22, 0.18,  0.258, 0.905, 0.00, matPanel);
+  // Thigh glow strip
+  box(0.028, 0.16, 0.026, -0.160, 0.905, -0.145, matGlow);
+  box(0.028, 0.16, 0.026,  0.160, 0.905, -0.145, matGlow);
 
-  // ── PELVIS / GROIN ──────────────────────────────────────────────────────
-  box(0.42, 0.12, 0.22, 0, 0.995, 0, matMid);
-  // Center belt buckle (glow)
-  box(0.08, 0.07, 0.06, 0, 0.995, -0.12, matGlow);
-  // Hip side pods
-  box(0.06, 0.10, 0.18, -0.24, 0.995, 0, matDark);
-  box(0.06, 0.10, 0.18,  0.24, 0.995, 0, matDark);
+  // ══ PELVIS / WAIST ═══════════════════════════════════════════════════════
+  cyl(0.215, 0.235, 0.18, 0, 1.065, 0, matArmor, 8);
+  // Belt wrap
+  box(0.46, 0.11, 0.28, 0, 1.062, 0, matPanel);
+  // Belt buckle glow
+  box(0.095, 0.075, 0.075, 0, 1.062, -0.152, matGlow);
+  // Hip pods
+  box(0.072, 0.130, 0.22, -0.272, 1.062, 0.00, matDark);
+  box(0.072, 0.130, 0.22,  0.272, 1.062, 0.00, matDark);
+  // Hip glow dots
+  box(0.028, 0.055, 0.028, -0.272, 1.090, -0.120, matGlow);
+  box(0.028, 0.055, 0.028,  0.272, 1.090, -0.120, matGlow);
 
-  // ── TORSO ───────────────────────────────────────────────────────────────
-  // Main torso — tapered (wider at shoulders, narrower at waist)
-  cyl(0.255, 0.22, 0.56, 0, 1.31, 0, matArmor, 8);
-  // Front chest plate (color)
-  box(0.38, 0.42, 0.05, 0, 1.32, -0.21, matColor);
-  // Chest plate inner recess
-  box(0.26, 0.28, 0.04, 0, 1.34, -0.235, matDark);
-  // Arc reactor ring (torus glow)
-  const reactorGeo = new THREE.TorusGeometry(0.065, 0.018, 8, 24);
-  const reactor = new THREE.Mesh(reactorGeo, matReactor);
-  reactor.position.set(0, 1.38, -0.252);
-  reactor.rotation.x = Math.PI / 2;
-  reactor.castShadow = false;
-  group.add(reactor);
-  group.userData.reactor = reactor;
-  // Reactor center dot
-  const rdot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), matReactor);
-  rdot.position.set(0, 1.38, -0.262);
-  group.add(rdot);
-  // Chest vertical energy line (glow)
-  box(0.025, 0.22, 0.025, 0, 1.38, -0.248, matGlow);
+  // ══ TORSO ════════════════════════════════════════════════════════════════
+  // Core — wide heroic chest tapering to waist
+  cyl(0.295, 0.230, 0.64, 0, 1.480, 0, matArmor, 8);
+  // Chest front plate — main accent panel
+  box(0.445, 0.50, 0.055, 0, 1.490, -0.238, matAccent);
+  // Chest inner panel (dark recess)
+  box(0.315, 0.345, 0.048, 0, 1.500, -0.260, matBase);
+  // Horizontal accent lines (Apex style "chest stripe")
+  box(0.360, 0.022, 0.030, 0, 1.340, -0.268, matGlow);
+  box(0.360, 0.022, 0.030, 0, 1.640, -0.268, matGlow);
+  // Vertical center spine glow
+  box(0.030, 0.290, 0.030, 0, 1.490, -0.272, matGlow);
+  // Arc reactor — torus + sphere core
+  const reactorRing = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.022, 10, 28), matReactor);
+  reactorRing.position.set(0, 1.490, -0.280);
+  reactorRing.rotation.x = Math.PI / 2;
+  group.add(reactorRing);
+  group.userData.reactor = reactorRing;
+  const reactorCore = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 10), matReactor);
+  reactorCore.position.set(0, 1.490, -0.292);
+  group.add(reactorCore);
   // Back plate
-  box(0.40, 0.42, 0.05, 0, 1.31, 0.215, matMid);
-  // Back vent slats (3 horizontal slats)
-  for (let i = 0; i < 3; i++) {
-    box(0.30, 0.025, 0.04, 0, 1.18 + i * 0.10, 0.242, matDark);
-  }
-  // Side torso detail strips
-  box(0.025, 0.36, 0.24, -0.258, 1.30, 0, matGlow);
-  box(0.025, 0.36, 0.24,  0.258, 1.30, 0, matGlow);
+  box(0.460, 0.52, 0.055, 0, 1.480, 0.238, matPanel);
+  // Back vent slats (4)
+  for (let i = 0; i < 4; i++) box(0.340, 0.026, 0.044, 0, 1.255 + i*0.110, 0.265, matDark);
+  // Side torso energy strips
+  box(0.030, 0.44, 0.28, -0.298, 1.460, 0, matGlow);
+  box(0.030, 0.44, 0.28,  0.298, 1.460, 0, matGlow);
+  // Collar ring
+  cyl(0.205, 0.290, 0.11, 0, 1.815, 0, matBase, 8);
 
-  // ── SHOULDER PAULDRONS ──────────────────────────────────────────────────
-  // Main pad (color) — wider, swept
-  cyl(0.115, 0.10, 0.18, -0.40, 1.50, 0, matColor, 8);
-  cyl(0.115, 0.10, 0.18,  0.40, 1.50, 0, matColor, 8);
-  // Top dome cap
-  cyl(0.115, 0.115, 0.04, -0.40, 1.60, 0, matArmor, 8);
-  cyl(0.115, 0.115, 0.04,  0.40, 1.60, 0, matArmor, 8);
-  // Forward swept fin
-  box(0.04, 0.10, 0.18, -0.415, 1.56, -0.10, matMid, -0.3, 0, 0);
-  box(0.04, 0.10, 0.18,  0.415, 1.56, -0.10, matMid, -0.3, 0, 0);
+  // ══ SHOULDER PAULDRONS ═══════════════════════════════════════════════════
+  // Sphere cap (Apex signature rounded shoulder)
+  sph(0.192, -0.468, 1.698, 0, matAccent, 10);
+  sph(0.192,  0.468, 1.698, 0, matAccent, 10);
+  // Shoulder cylinder body
+  cyl(0.158, 0.135, 0.26, -0.468, 1.610, 0, matAccent, 8);
+  cyl(0.158, 0.135, 0.26,  0.468, 1.610, 0, matAccent, 8);
+  // Panel inset on shoulder
+  box(0.065, 0.14, 0.22, -0.490, 1.672, -0.085, matBase, -0.20, 0, 0);
+  box(0.065, 0.14, 0.22,  0.490, 1.672, -0.085, matBase, -0.20, 0, 0);
   // Shoulder glow ring
-  const sRingGeo = new THREE.TorusGeometry(0.095, 0.012, 6, 20);
-  const sRingL = new THREE.Mesh(sRingGeo, matGlow);
-  sRingL.position.set(-0.40, 1.505, 0);
-  group.add(sRingL);
-  const sRingR = new THREE.Mesh(sRingGeo, matGlow);
-  sRingR.position.set( 0.40, 1.505, 0);
-  group.add(sRingR);
+  const sgL = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.016, 6, 22), matGlow);
+  sgL.position.set(-0.468, 1.600, 0); group.add(sgL);
+  const sgR = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.016, 6, 22), matGlow);
+  sgR.position.set( 0.468, 1.600, 0); group.add(sgR);
+  // Epaulette spike (swept forward)
+  box(0.055, 0.115, 0.24, -0.492, 1.760, -0.095, matDark, -0.28, 0, 0);
+  box(0.055, 0.115, 0.24,  0.492, 1.760, -0.095, matDark, -0.28, 0, 0);
 
-  // ── UPPER ARMS ──────────────────────────────────────────────────────────
-  const armL = cyl(0.085, 0.075, 0.38, -0.40, 1.22, 0, matArmor, 8);
-  const armR = cyl(0.085, 0.075, 0.38,  0.40, 1.22, 0, matArmor, 8);
+  // ══ UPPER ARMS ═══════════════════════════════════════════════════════════
+  const armL = cyl(0.095, 0.085, 0.42, -0.468, 1.365, 0, matArmor, 8);
+  const armR = cyl(0.095, 0.085, 0.42,  0.468, 1.365, 0, matArmor, 8);
   group.userData.armL = armL;
   group.userData.armR = armR;
-  // Arm color stripe
-  box(0.025, 0.24, 0.025, -0.40, 1.22, -0.085, matGlow);
-  box(0.025, 0.24, 0.025,  0.40, 1.22, -0.085, matGlow);
+  // Arm front plate
+  box(0.148, 0.30, 0.045, -0.468, 1.368, -0.105, matPanel);
+  box(0.148, 0.30, 0.045,  0.468, 1.368, -0.105, matPanel);
+  // Arm glow stripe
+  box(0.030, 0.26, 0.030, -0.468, 1.368, -0.120, matGlow);
+  box(0.030, 0.26, 0.030,  0.468, 1.368, -0.120, matGlow);
 
-  // ── ELBOWS ──────────────────────────────────────────────────────────────
-  cyl(0.085, 0.085, 0.06, -0.40, 1.035, 0, matDark, 8);
-  cyl(0.085, 0.085, 0.06,  0.40, 1.035, 0, matDark, 8);
-  // Elbow spike (out-facing)
-  box(0.12, 0.05, 0.05, -0.44, 1.035, 0.0, matMid);
-  box(0.12, 0.05, 0.05,  0.44, 1.035, 0.0, matMid);
+  // ══ ELBOWS ═══════════════════════════════════════════════════════════════
+  cyl(0.095, 0.095, 0.070, -0.468, 1.155, 0, matDark, 8);
+  cyl(0.095, 0.095, 0.070,  0.468, 1.155, 0, matDark, 8);
+  // Elbow spur
+  box(0.145, 0.060, 0.060, -0.508, 1.155, 0.025, matPanel);
+  box(0.145, 0.060, 0.060,  0.508, 1.155, 0.025, matPanel);
 
-  // ── FOREARMS ────────────────────────────────────────────────────────────
-  cyl(0.075, 0.065, 0.30, -0.40, 0.855, 0, matMid, 8);
-  cyl(0.075, 0.065, 0.30,  0.40, 0.855, 0, matMid, 8);
+  // ══ FOREARMS ═════════════════════════════════════════════════════════════
+  cyl(0.085, 0.074, 0.34, -0.468, 0.970, 0, matPanel, 8);
+  cyl(0.085, 0.074, 0.34,  0.468, 0.970, 0, matPanel, 8);
+  // Forearm front guard (accent)
+  box(0.128, 0.20, 0.048, -0.468, 0.972, -0.098, matAccent);
+  box(0.128, 0.20, 0.048,  0.468, 0.972, -0.098, matAccent);
 
-  // ── RIGHT-ARM CANNON (third-person) ─────────────────────────────────────
-  const armGroup = new THREE.Group();
-  armGroup.position.set(0.40, 0.72, -0.12);
+  // ══ GUN GAUNTLET (right arm) ═════════════════════════════════════════════
+  const gunGroup = new THREE.Group();
+  gunGroup.position.set(0.468, 0.790, -0.140);
 
-  // Cannon housing — octagonal barrel
-  const cannonBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.40, 8), matDark);
-  cannonBody.rotation.x = Math.PI / 2;
-  cannonBody.position.set(0, 0, -0.12);
-  armGroup.add(cannonBody);
-  // Muzzle ring (color)
-  const muzzleRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.01, 6, 16), matGlow);
-  muzzleRing.position.set(0, 0, -0.33);
-  armGroup.add(muzzleRing);
+  // Gauntlet knuckle housing
+  const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.230, 0.160, 0.320), matBase);
+  knuckle.position.set(0, 0, -0.020);
+  gunGroup.add(knuckle);
+  // Barrel (octagonal)
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.072, 0.46, 8), matDark);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0, -0.190);
+  gunGroup.add(barrel);
+  // Heat sink fins (3)
+  for (let i = 0; i < 3; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.188, 0.025, 0.110), matPanel);
+    fin.position.set(0, 0.088, -0.145 + i * 0.00);
+    gunGroup.add(fin);
+  }
+  // Muzzle glow ring
+  const muzzleRing = new THREE.Mesh(new THREE.TorusGeometry(0.060, 0.013, 6, 18), matGlow);
+  muzzleRing.position.set(0, 0, -0.422);
+  gunGroup.add(muzzleRing);
   // Top rail
-  const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.36), matMid);
-  topRail.position.set(0, 0.07, -0.12);
-  armGroup.add(topRail);
-  // Side fin on cannon
-  const cannFin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.025, 0.18), matMid);
-  cannFin.position.set(0, 0, -0.08);
-  armGroup.add(cannFin);
-  // Energy cell glow (color)
-  const cellGeo = new THREE.BoxGeometry(0.03, 0.07, 0.07);
-  const cell = new THREE.Mesh(cellGeo, matGlow);
-  cell.position.set(-0.065, 0, -0.05);
-  armGroup.add(cell);
+  const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.030, 0.42), matPanel);
+  topRail.position.set(0, 0.082, -0.168);
+  gunGroup.add(topRail);
+  // Holographic sight
+  const sightBody = new THREE.Mesh(new THREE.BoxGeometry(0.040, 0.048, 0.095), matDark);
+  sightBody.position.set(0, 0.114, -0.072);
+  gunGroup.add(sightBody);
+  const sightLens = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.024, 0.022), matVisor);
+  sightLens.position.set(0, 0.114, -0.118);
+  gunGroup.add(sightLens);
+  // Energy cell (left side, glowing)
+  const cellMat = new THREE.MeshStandardMaterial({
+    color, emissive: new THREE.Color(color), emissiveIntensity: 4.5, metalness: 0.3, roughness: 0.15,
+  });
+  const energyCell = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.090, 0.095), cellMat);
+  energyCell.position.set(-0.082, 0, -0.078);
+  gunGroup.add(energyCell);
 
-  group.add(armGroup);
-  group.userData.gunGroup = armGroup;
+  group.add(gunGroup);
+  group.userData.gunGroup = gunGroup;
 
-  // ── NECK ────────────────────────────────────────────────────────────────
-  cyl(0.075, 0.085, 0.12, 0, 1.69, 0, matDark, 8);
+  // ══ NECK ═════════════════════════════════════════════════════════════════
+  cyl(0.085, 0.100, 0.150, 0, 1.880, 0, matDark, 8);
 
-  // ── HEAD / HELMET ───────────────────────────────────────────────────────
-  // Base skull — rounded octagon cylinder
-  cyl(0.195, 0.205, 0.36, 0, 1.89, 0, matArmor, 8);
-  // Dome top — sphere cap
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.198, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), matArmor);
-  dome.position.set(0, 2.07, 0);
+  // ══ HELMET ═══════════════════════════════════════════════════════════════
+  // Base skull (octagonal)
+  cyl(0.228, 0.240, 0.43, 0, 2.120, 0, matBase, 8);
+  // Dome cap
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.232, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), matBase);
+  dome.position.set(0, 2.335, 0);
   dome.castShadow = true;
   group.add(dome);
-  // Forehead plate (color)
-  box(0.28, 0.12, 0.04, 0, 1.985, -0.20, matColor);
-  // Face recess (dark)
-  box(0.24, 0.20, 0.04, 0, 1.88, -0.22, matDark);
-  // Visor — wide glowing tri-lens band
-  const visGeo = new THREE.BoxGeometry(0.28, 0.09, 0.07);
-  const vis = new THREE.Mesh(visGeo, matVisor);
-  vis.position.set(0, 1.92, -0.225);
-  vis.castShadow = false;
+  // Top helmet accent band (player color)
+  box(0.325, 0.028, 0.275, 0, 2.360, 0, matAccent);
+  // Brow ridge — overhangs the visor (Apex silhouette)
+  box(0.370, 0.055, 0.065, 0, 2.198, -0.240, matAccent);
+  // Cheek armor plates (angled, angular — Apex Legends look)
+  box(0.065, 0.195, 0.088, -0.248, 2.085, -0.178, matAccent, 0,  0.24, 0);
+  box(0.065, 0.195, 0.088,  0.248, 2.085, -0.178, matAccent, 0, -0.24, 0);
+  // Visor — wide horizontal band (signature Apex/Farlight style)
+  const vis = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.110, 0.090), matVisor);
+  vis.position.set(0, 2.110, -0.246);
   group.add(vis);
   group.userData.visorMesh = vis;
-  // Visor side flares
-  box(0.04, 0.06, 0.06, -0.170, 1.92, -0.215, matVisor);
-  box(0.04, 0.06, 0.06,  0.170, 1.92, -0.215, matVisor);
-  // Chin guard
-  box(0.22, 0.08, 0.05, 0, 1.78, -0.20, matMid);
+  // Visor side wrap-arounds
+  box(0.058, 0.078, 0.080, -0.208, 2.110, -0.238, matVisor);
+  box(0.058, 0.078, 0.080,  0.208, 2.110, -0.238, matVisor);
+  // Face recess behind visor
+  box(0.265, 0.215, 0.045, 0, 2.090, -0.238, matDark);
+  // Chin guard (armored)
+  box(0.268, 0.095, 0.065, 0, 1.975, -0.228, matPanel);
   // Chin glow slot
-  box(0.10, 0.025, 0.04, 0, 1.77, -0.22, matGlow);
-  // Side ear vents (3 horizontal slats each side)
+  box(0.118, 0.032, 0.044, 0, 1.970, -0.248, matGlow);
+  // Ear/temple vents (3 horizontal slats per side)
   for (let i = 0; i < 3; i++) {
-    box(0.025, 0.025, 0.10, -0.215, 1.83 + i * 0.055,  0.03, matDark);
-    box(0.025, 0.025, 0.10,  0.215, 1.83 + i * 0.055,  0.03, matDark);
+    box(0.030, 0.030, 0.115, -0.248, 2.060 + i*0.062,  0.040, matDark);
+    box(0.030, 0.030, 0.115,  0.248, 2.060 + i*0.062,  0.040, matDark);
   }
-  // Rear head fin / mohawk (color)
-  box(0.04, 0.18, 0.10, 0, 2.09, 0.09, matColor, -0.25, 0, 0);
-  // Antenna (thin)
-  box(0.018, 0.18, 0.018, 0.13, 2.18, 0, matDark);
-  // Antenna tip (glow)
-  cyl(0.018, 0.012, 0.04, 0.13, 2.28, 0, matGlow, 6);
+  // Rear helmet panel
+  box(0.345, 0.350, 0.055, 0, 2.095, 0.240, matPanel);
+  // Mohawk/crest (swept, player color — Farlight style)
+  box(0.048, 0.225, 0.120, 0, 2.380, 0.078, matAccent, -0.24, 0, 0);
+  // Antenna
+  box(0.022, 0.240, 0.022, 0.158, 2.452, 0, matDark);
+  cyl(0.022, 0.015, 0.048, 0.158, 2.578, 0, matGlow, 6);
 
-  // ── BACKPACK / JETPACK ──────────────────────────────────────────────────
-  box(0.32, 0.30, 0.08, 0, 1.35, 0.26, matMid);
-  // Thruster nozzles (2)
-  cyl(0.04, 0.055, 0.12, -0.10, 1.20, 0.30, matDark, 8);
-  cyl(0.04, 0.055, 0.12,  0.10, 1.20, 0.30, matDark, 8);
-  // Thruster glow ring
-  const tRingL = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 16), matGlow);
-  tRingL.position.set(-0.10, 1.14, 0.29);
-  group.add(tRingL);
-  const tRingR = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 16), matGlow);
-  tRingR.position.set( 0.10, 1.14, 0.29);
-  group.add(tRingR);
-  // Fin spines (3 swept up)
-  box(0.025, 0.22, 0.08, -0.14, 1.48, 0.27, matColor, -0.3, 0, 0);
-  box(0.025, 0.22, 0.08,  0.00, 1.50, 0.27, matColor, -0.3, 0, 0);
-  box(0.025, 0.22, 0.08,  0.14, 1.48, 0.27, matColor, -0.3, 0, 0);
+  // ══ BACKPACK / JETPACK ═══════════════════════════════════════════════════
+  box(0.385, 0.370, 0.095, 0, 1.488, 0.282, matPanel);
+  box(0.305, 0.265, 0.055, 0, 1.488, 0.320, matDark);
+  // Thruster nozzles
+  cyl(0.048, 0.065, 0.145, -0.118, 1.295, 0.318, matDark, 8);
+  cyl(0.048, 0.065, 0.145,  0.118, 1.295, 0.318, matDark, 8);
+  // Thruster inner glow
+  const tgL = new THREE.Mesh(new THREE.TorusGeometry(0.050, 0.012, 6, 18), matGlow);
+  tgL.position.set(-0.118, 1.222, 0.305); group.add(tgL);
+  const tgR = new THREE.Mesh(new THREE.TorusGeometry(0.050, 0.012, 6, 18), matGlow);
+  tgR.position.set( 0.118, 1.222, 0.305); group.add(tgR);
+  // Fin spines (3 swept-back)
+  box(0.030, 0.285, 0.095, -0.165, 1.618, 0.285, matAccent, -0.30, 0, 0);
+  box(0.030, 0.285, 0.095,  0.000, 1.640, 0.285, matAccent, -0.30, 0, 0);
+  box(0.030, 0.285, 0.095,  0.165, 1.618, 0.285, matAccent, -0.30, 0, 0);
 
   return group;
 }
+
+
+
 
 function getOrCreateMesh(id) {
   if (playerMeshes.has(id)) return playerMeshes.get(id);
@@ -1378,7 +1502,21 @@ function renderLoop() {
     }
   }
 
-  renderer.render(scene, camera);
+  // Drift clouds
+  for (const c of cloudMeshes) {
+    c.position.x += c.userData.driftX * dt;
+    c.position.z += c.userData.driftZ * dt;
+    // Wrap around the arena so clouds are always present
+    if (c.position.x >  500) c.position.x = -500;
+    if (c.position.x < -500) c.position.x =  500;
+    if (c.position.z >  500) c.position.z = -500;
+    if (c.position.z < -500) c.position.z =  500;
+  }
+
+  // Render via post-processing composer (bloom on all emissive elements)
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
+
   updateBullets(dt);
   updateImpacts(dt);
 
