@@ -1,60 +1,18 @@
 {
-  "name": "l-town",
-  "version": "1.1.1",
-  "description": "L-Town — free open-source multiplayer browser FPS. No download, 300-player arena, procedural map, self-host via Docker or npx. Three.js + Node.js WebSockets.",
+  "name": "l-town-v2",
+  "version": "2.0.0",
+  "private": true,
   "type": "module",
-  "main": "server.js",
-  "bin": {
-    "l-town": "server.js"
-  },
-  "files": [
-    "server.js",
-    "public/",
-    "sounds/"
-  ],
+  "workspaces": ["shared", "server", "client"],
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "start": "node server/dist/index.js",
+    "lint": "tsc --noEmit --project server/tsconfig.json && tsc --noEmit --project client/tsconfig.json"
   },
-  "keywords": [
-    "fps",
-    "first-person-shooter",
-    "multiplayer",
-    "multiplayer-game",
-    "browser-game",
-    "browser-fps",
-    "io-game",
-    "arena-shooter",
-    "threejs",
-    "three-js",
-    "webgl",
-    "websocket",
-    "nodejs",
-    "javascript",
-    "self-hosted",
-    "selfhosted",
-    "docker",
-    "procedural-generation",
-    "lan-game",
-    "party-game",
-    "html5-game",
-    "open-source"
-  ],
-  "author": "besoeasy",
-  "license": "MIT",
-  "homepage": "https://yantr.org/apps/l-town/",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/besoeasy/l-town.git"
-  },
-  "bugs": {
-    "url": "https://github.com/besoeasy/l-town/issues"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "three": "^0.179.1",
-    "ws": "^8.0.0"
+  "dependencies": {},
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.6.3"
   }
 }
