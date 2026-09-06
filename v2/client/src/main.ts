@@ -2,6 +2,10 @@ import * as THREE from 'three'
 import { CFG, CORE_IDS } from '@l-town/shared/src/cfg.js'
 import { generateMap } from '@l-town/shared/src/map_pure.js'
 import { initScene } from './scene.js'
+import { registerSW } from './pwa.js'
+import { createHost, joinMesh } from './webrtc.js'
+import { spawnBots, tickBots } from './bot.js'
+registerSW()
 
 const coreSel=document.getElementById('coreSelect') as HTMLSelectElement
 for(const c of CORE_IDS){ const o=document.createElement('option'); o.value=c; o.textContent=c; coreSel.appendChild(o) }

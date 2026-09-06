@@ -16,5 +16,9 @@
 <canvas id="canvas"></canvas>
 <div id="hud"><span id="hp"></span> <span id="score"></span> <span id="timer"></span></div>
 <script type="module" src="/src/main.ts"></script>
+<script>
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js')
+</script>
+
 </body>
 </html>
