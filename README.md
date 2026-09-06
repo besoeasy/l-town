@@ -81,6 +81,10 @@ Every player runs the same RX-11 chassis: 500 hull, base speed, fixed SUPER (50)
 | 🧫 Parasite | Leech burst: 8 hull/s from enemies within 15 units for 6s (30s) |
 | 🔴 Berserker | Rage: +50% damage, +25% speed for 8s (35s) |
 
+## Lore
+
+Deep dive into the world — [lore.md](lore.md)
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Free for personal, educational, and commercial self-hosting.
