@@ -2,7 +2,7 @@
 
 ## Overview
 
-In 3049, humans never touch the ground. Robots go down. Operators stay in orbit. L-Town decides which cores are fit to leave the solar system.
+In 3049, humans never touch the ground. Robots go down. Operators stay in orbit. L-Town is a broadcast trial where open amateurs pilot RX-11 units for fame, sponsors, and a shot at the off-world circuit.
 
 ## Year 3049 — The Remote Age
 
@@ -44,14 +44,14 @@ Eleven organisations submitted cores for this season:
 
 ## L-Town Protocol
 
-L-Town is a decommissioned frontier township kept as a live-fire lab.
+L-Town is a decommissioned transit hub kept as a live-fire lab and broadcast arena. Its roads, garage, and office tower remain from the Meridian freight days.
 
-Each trial runs 10 minutes. Highest score wins. Top 3 cores earn flight certification for off-world deployment.
+Each trial runs 10 minutes. Highest score wins. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
-The arena regenerates every match. No map is fought twice.
+The arena regenerates each dawn. One map per day — everyone fights the same town.
 
 ## Operators
 
-Operators are volunteers, conscripts, and esports pilots linked via neural link.
+Operators are open amateurs. Anyone with a neural link can join — no license, no team required. Most fight for viral fame and leaderboard clips.
 
-Death in L-Town is a disconnect, not a death. The best operators are hired to pilot real missions off-world.
+Death in L-Town is a disconnect, not a death. The best amateurs get signed to pilot real missions off-world.
