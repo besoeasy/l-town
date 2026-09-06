@@ -1,6 +1,6 @@
 // Physics — server authoritative sweep AABB, rapier-ready interface
 // v2 scratch: grid + sweep, rapier would replace resolveCollision with RAPIER.World step
-import { CFG } from '@l-town/shared/src/cfg.js'
+import { CFG } from '@l-town/shared/dist/cfg.js'
 export function createBoxGrid(MAP:any, BOX_CELL=20) {
   const grid = new Map()
   for (const box of MAP.boxes) {

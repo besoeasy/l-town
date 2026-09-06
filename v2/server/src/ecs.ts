@@ -1,5 +1,5 @@
 // Minimal ECS — lore: RX-11 chassis same body, core = soul
-import type { CoreId } from '@l-town/shared/src/cfg.js'
+import type { CoreId } from '@l-town/shared/dist/cfg.js'
 export type Entity = number
 export type Comp<T> = Map<Entity, T>
 export const Position: Comp<{x:number;y:number;z:number;yaw:number;pitch:number}> = new Map()

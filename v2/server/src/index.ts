@@ -5,11 +5,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
-import { CFG, CORE_IDS } from '@l-town/shared/src/cfg.js'
-import { makePRNG } from '@l-town/shared/src/utls.js'
+import { CFG, CORE_IDS } from '@l-town/shared/dist/cfg.js'
+import { makePRNG } from '@l-town/shared/dist/utls.js'
 import { createBoxGrid, resolveCollision } from './physics.js'
 // reuse shared map gen (v1 copy)
-import { generateMap } from '@l-town/shared/src/map_pure.js'
+import { generateMap } from '@l-town/shared/dist/map_pure.js'
 // pure map gen — no three.js (P0)
 
 const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filename)
