@@ -1,20 +1,30 @@
-![l-town](https://github.com/user-attachments/assets/7c0ea3d7-d7c4-478b-9349-3592064ed552)
+![L-Town — open-source multiplayer browser FPS arena](https://github.com/user-attachments/assets/7c0ea3d7-d7c4-478b-9349-3592064ed552)
 
-# L-Town
+# L-Town — Free Open-Source Multiplayer Browser FPS
 
-A browser-based multiplayer FPS. No download — open a URL and play.
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fbesoeasy%2Fl--town-blue.svg)](Dockerfile)
+[![Three.js](https://img.shields.io/badge/three.js-WebGL-black.svg)](https://threejs.org)
+[![WebSockets](https://img.shields.io/badge/multiplayer-WebSockets-orange.svg)](server.js)
 
-Built with Node.js, WebSockets, and Three.js.
+A browser-based multiplayer FPS. No download — open a URL and play. Perfect for LAN parties, classrooms, offices, and io-game nights.
+
+Built with Node.js, WebSockets, and Three.js. Self-host in seconds with `npx` or Docker — no accounts, no sign-up.
+
+> Keywords: browser fps, browser game, io game, arena shooter, multiplayer shooter, first-person shooter, self-hosted game, lan party game, three.js fps, websocket multiplayer, html5 fps, open-source game, procedural arena, docker game server.
 
 ---
 
 ## Features
 
-- Up to 300 players per server
+- Up to 300 players per server — massive browser arena shooter
 - Procedurally generated 750×750 arena, regenerates each match
-- 11 playable characters with unique abilities
+- 11 playable cores with unique abilities (same RX-11 chassis, fair play)
 - 10-minute matches, top 3 players win
-- No accounts or sign-up required
+- No accounts or sign-up required — share a link, friends join instantly
+- Self-hosted: runs on LAN, VPS, or Raspberry Pi via Node.js or Docker
+- Zero-install play: mobile-friendly lobby, desktop FPS controls
 
 ## Quick Start
 
@@ -73,4 +83,4 @@ Every player runs the same RX-11 chassis: 500 hull, base speed, fixed SUPER (50)
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Free for personal, educational, and commercial self-hosting.

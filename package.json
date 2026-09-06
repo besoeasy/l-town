@@ -1,7 +1,7 @@
 {
   "name": "l-town",
   "version": "1.0.0",
-  "description": "Lightweight web-based solo FPS arena shooter",
+  "description": "L-Town — free open-source multiplayer browser FPS. No download, 300-player arena, procedural map, self-host via Docker or npx. Three.js + Node.js WebSockets.",
   "type": "module",
   "main": "server.js",
   "bin": {
@@ -15,6 +15,43 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
+  },
+  "keywords": [
+    "fps",
+    "first-person-shooter",
+    "multiplayer",
+    "multiplayer-game",
+    "browser-game",
+    "browser-fps",
+    "io-game",
+    "arena-shooter",
+    "threejs",
+    "three-js",
+    "webgl",
+    "websocket",
+    "nodejs",
+    "javascript",
+    "self-hosted",
+    "selfhosted",
+    "docker",
+    "procedural-generation",
+    "lan-game",
+    "party-game",
+    "html5-game",
+    "open-source"
+  ],
+  "author": "besoeasy",
+  "license": "MIT",
+  "homepage": "https://yantr.org/apps/l-town/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/besoeasy/l-town.git"
+  },
+  "bugs": {
+    "url": "https://github.com/besoeasy/l-town/issues"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "three": "^0.179.1",
