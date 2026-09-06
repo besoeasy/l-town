@@ -30,7 +30,7 @@ The chassis fabricates replacements from ambient matter. Hold still and intakes 
 
 Each swarm is powered by an Atma Core. Atma means soul.
 
-The core provides energy and one combat ability. Each core holds a copied mind-pattern from its maker — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
+The core provides energy and one combat ability. Each core holds a copied mind-pattern of its maker's founder — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
 
 Swap the core, change the soul. The body stays the same.
 
@@ -43,16 +43,16 @@ Eleven organisations submitted cores for this season:
 - **Denja** — Kuro Racer Syndicate. Overdrive engines. 2× speed burst for 8 seconds.
 - **Mednix** — Helix Med-Corps. Field repair. Restores 1–50 hull instantly.
 - **Tank** — Bastion Siege Foundry. Bulwark doctrine. Takes half damage for 8 seconds.
-- **Anchor** — Orbital Guard. Aegis shields. 3 seconds of full immunity.
+- **Anchor** — Orbital Guard. Aegis shields. Pre-charged cell fires one 3s immunity.
 - **Surge** — Deep Vein Mining Guild. Siphon tech. Drains 30 hull from the nearest enemy.
 - **Jinx** — Black Lotus AI Lab. Retaliation code. Dying swarm fires a dead-man overload into its killer (80 hull).
-- **Gambler** — Vesper Casino-State. Probability weapons. Heal, teleport, or die.
+- **Gambler** — Vesper Casino-State. Desperate odds. Heal or teleport is worth the death chance on hostile worlds.
 - **Parasite** — Green Hive. Leech ecology. Drains nearby enemies for 6 seconds.
 - **Berserker** — Red Pit Fighters. Rage stimulant. +50% damage and +25% speed for 8 seconds.
 
 ## L-Town Protocol
 
-L-Town is a decommissioned transit hub kept as a battleground for testing new tech. Its roads, garage, and office tower remain from the Meridian freight days.
+L-Town is a decommissioned transit hub kept as a battleground for testing new tech. Its roads, garage, and office tower remain from the Meridian freight days. Meridian still fields Telepotu — drone logs and neutral refs keep the contest honest.
 
 Makers prove their cores here. Winning cores earn glory and off-world contracts — mining runs, hostile encounters, and survey work on planets humans cannot enter. Combat in the arena is the job interview.
 
