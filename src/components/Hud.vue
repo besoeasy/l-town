@@ -40,18 +40,20 @@ const formatTime = (seconds: number) => {
 
 // Q Ability Timer
 const qTimeRemaining = computed(() => {
+  if (props.player.superActive) return 0
   if (core.value.cooldown <= 0) return 0
   const elapsed = currentTime.value - (props.player.lastAbilityAt || 0)
   return Math.max(0, (core.value.cooldown - elapsed) / 1000)
 })
 
 const qPercent = computed(() => {
+  if (props.player.superActive) return 0
   if (core.value.cooldown <= 0) return 100
   const elapsed = currentTime.value - (props.player.lastAbilityAt || 0)
   return Math.min(100, Math.max(0, (elapsed / core.value.cooldown) * 100))
 })
 
-const abilityReady = computed(() => qTimeRemaining.value <= 0)
+const abilityReady = computed(() => !props.player.superActive && qTimeRemaining.value <= 0)
 
 // E Super Timer (duration = 10s)
 const eTimeRemaining = computed(() => {
@@ -73,6 +75,7 @@ const rTimeRemaining = computed(() => {
 })
 
 const rPercent = computed(() => {
+  if (props.player.superActive) return 0
   if (props.player.shieldActive && props.player.shieldEnd) {
     return Math.min(100, Math.max(0, (rTimeRemaining.value / (CFG.SHIELD_DURATION / 1000)) * 100))
   }
@@ -152,7 +155,14 @@ const cPercent = computed(() => {
       <!-- Action & Ability Indicators with Border Timer Lines -->
       <div class="actions-panel">
         <!-- Q Ability -->
-        <div class="action-card" :class="{ ready: abilityReady, cooldown: !abilityReady }">
+        <div
+          class="action-card"
+          :class="{
+            ready: abilityReady,
+            cooldown: !abilityReady && !player.superActive,
+            disabled: player.superActive
+          }"
+        >
           <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
             <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
             <rect
@@ -162,22 +172,24 @@ const cPercent = computed(() => {
               :style="{
                 strokeDasharray: '100',
                 strokeDashoffset: `${100 - qPercent}`,
-                stroke: abilityReady ? '#00f0ff' : '#0ea5e9'
+                stroke: player.superActive ? 'rgba(255, 255, 255, 0.15)' : abilityReady ? '#00f0ff' : '#0ea5e9'
               }"
             />
           </svg>
           <div class="card-inner">
-            <div class="key-bind">Q</div>
+            <div class="key-bind" :class="{ 'key-disabled': player.superActive }">Q</div>
             <div class="action-info">
               <span class="action-name">{{ core.ability }}</span>
-              <span class="action-status">{{ abilityReady ? 'READY' : `${qTimeRemaining.toFixed(1)}s` }}</span>
+              <span class="action-status">
+                {{ player.superActive ? 'DISABLED (SUPER)' : abilityReady ? 'READY' : `${qTimeRemaining.toFixed(1)}s` }}
+              </span>
             </div>
           </div>
           <div
             class="bottom-border-line"
             :style="{
               width: `${qPercent}%`,
-              backgroundColor: abilityReady ? '#00f0ff' : '#0ea5e9'
+              backgroundColor: player.superActive ? 'transparent' : abilityReady ? '#00f0ff' : '#0ea5e9'
             }"
           ></div>
         </div>
@@ -216,7 +228,13 @@ const cPercent = computed(() => {
         </div>
 
         <!-- R Shield -->
-        <div class="action-card" :class="{ active: player.shieldActive }">
+        <div
+          class="action-card"
+          :class="{
+            active: player.shieldActive,
+            disabled: player.superActive
+          }"
+        >
           <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
             <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
             <rect
@@ -226,16 +244,16 @@ const cPercent = computed(() => {
               :style="{
                 strokeDasharray: '100',
                 strokeDashoffset: `${100 - rPercent}`,
-                stroke: player.shieldActive ? '#00f0ff' : '#64748b'
+                stroke: player.superActive ? 'rgba(255, 255, 255, 0.15)' : player.shieldActive ? '#00f0ff' : '#64748b'
               }"
             />
           </svg>
           <div class="card-inner">
-            <div class="key-bind">R</div>
+            <div class="key-bind" :class="{ 'key-disabled': player.superActive }">R</div>
             <div class="action-info">
               <span class="action-name">SHIELD</span>
               <span class="action-status">
-                {{ player.shieldActive ? `${rTimeRemaining.toFixed(1)}s IMMUNE` : '80 HULL' }}
+                {{ player.superActive ? 'DISABLED (SUPER)' : player.shieldActive ? `${rTimeRemaining.toFixed(1)}s IMMUNE` : '80 HULL' }}
               </span>
             </div>
           </div>
@@ -243,7 +261,7 @@ const cPercent = computed(() => {
             class="bottom-border-line"
             :style="{
               width: `${rPercent}%`,
-              backgroundColor: player.shieldActive ? '#00f0ff' : 'rgba(0, 240, 255, 0.4)'
+              backgroundColor: player.superActive ? 'transparent' : player.shieldActive ? '#00f0ff' : 'rgba(0, 240, 255, 0.4)'
             }"
           ></div>
         </div>
@@ -597,6 +615,13 @@ const cPercent = computed(() => {
   opacity: 0.75;
 }
 
+.action-card.disabled {
+  opacity: 0.42;
+  filter: grayscale(0.85);
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .key-bind {
   font-family: 'JetBrains Mono', monospace;
   background: rgba(255, 255, 255, 0.15);
@@ -605,6 +630,11 @@ const cPercent = computed(() => {
   font-size: 14px;
   font-weight: 700;
   color: #00f0ff;
+}
+
+.key-bind.key-disabled {
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .action-info {

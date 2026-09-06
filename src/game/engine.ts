@@ -260,7 +260,7 @@ export class GameEngine {
   }
 
   private triggerShield() {
-    if (!this.localPlayer.alive || this.localPlayer.shieldActive) return
+    if (!this.localPlayer.alive || this.localPlayer.shieldActive || this.localPlayer.superActive) return
     if (this.localPlayer.health >= CFG.SHIELD_COST + 1) {
       this.localPlayer.health -= CFG.SHIELD_COST
       this.localPlayer.shieldActive = true
@@ -274,7 +274,7 @@ export class GameEngine {
   }
 
   private triggerClassAbility() {
-    if (!this.localPlayer.alive) return
+    if (!this.localPlayer.alive || this.localPlayer.superActive) return
     const now = Date.now()
     const core = CORE_DETAILS[this.localPlayer.character]
     if (core.cooldown > 0 && now - this.lastAbilityUsedAt < core.cooldown) return
@@ -708,6 +708,25 @@ export class GameEngine {
         p.character = msg.character
       } else {
         this.addRemotePlayer(fromId, msg.name, msg.character)
+      }
+    } else if (msg.type === 'super' && fromId && this.players.has(fromId)) {
+      const p = this.players.get(fromId)!
+      if (p.alive && !p.superActive && p.health >= CFG.SUPER_COST + 1) {
+        p.health -= CFG.SUPER_COST
+        p.superActive = true
+        p.superEnd = Date.now() + CFG.SUPER_DURATION
+      }
+    } else if (msg.type === 'shield' && fromId && this.players.has(fromId)) {
+      const p = this.players.get(fromId)!
+      if (p.alive && !p.shieldActive && !p.superActive && p.health >= CFG.SHIELD_COST + 1) {
+        p.health -= CFG.SHIELD_COST
+        p.shieldActive = true
+        p.shieldEnd = Date.now() + CFG.SHIELD_DURATION
+      }
+    } else if (msg.type === 'classAbility' && fromId && this.players.has(fromId)) {
+      const p = this.players.get(fromId)!
+      if (p.alive && !p.superActive) {
+        this.applyAbility(p)
       }
     }
   }

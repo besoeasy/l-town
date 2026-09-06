@@ -72,8 +72,8 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
 - `JUMP_SPEED`: 18 units/s, `GRAVITY`: 32 units/s²
 - `SUPER_JUMP_SPEED`: 44 units/s, `SUPER_JUMP_COST`: 20 Hull
 - `DMG_SINGLE`: 20 base damage (scaled by distance falloff, min 25% at 120 units)
-- `SUPER_MULT`: 3× damage multiplier AND 2× movement speed multiplier (10s duration, -50 Hull cost)
-- `HUD_INDICATORS`: Q, E, R, C buttons feature animated perimeter SVG and linear border lines indicating real-time seconds remaining or charge progress.
+- `SUPER_MULT`: 3× damage multiplier AND 2× movement speed multiplier (10s duration, -50 Hull cost). While Super is active, Q (Atma Core ability) and R (Nanite Barrier shield) are disabled.
+- `HUD_INDICATORS`: Q, E, R, C buttons feature animated perimeter SVG and linear border lines indicating real-time seconds remaining or charge progress. When Super is active, Q and R display DISABLED (SUPER).
 - `RECONNECT_GRACE_MS`: 15000ms
 
 ### 3.4 750×750 Procedural Arena (`map_pure.ts`)
