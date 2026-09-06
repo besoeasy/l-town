@@ -2,7 +2,7 @@
 
 ## Overview
 
-In 3049, humans never touch the ground. Robots go down. Operators stay in orbit. L-Town is a broadcast trial where open amateurs pilot RX-11 units for fame, sponsors, and a shot at the off-world circuit.
+In 3049, humans never touch the ground. Robots go down. Operators stay in orbit. L-Town is a broadcast trial where open amateurs pilot RX-11 swarms for fame, sponsors, and a shot at the off-world circuit — army, mining, and general labor.
 
 ## Year 3049 — The Remote Age
 
@@ -36,7 +36,7 @@ Swap the core, change the soul. The body stays the same.
 
 ## The Makers
 
-Eleven organisations submitted cores for this season:
+Eleven organisations submitted custom cores for this season:
 
 - **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy.
 - **Chumantr** — Pale Choir stealth cult. Survey sneak for hostile ground. Vanishes for 10 seconds, can't shoot.
