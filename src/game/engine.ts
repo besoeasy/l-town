@@ -91,10 +91,62 @@ export class GameEngine {
 
   setHostNetwork(host: P2PHost) {
     this.host = host
+    for (const [id] of host.peers) {
+      if (!this.players.has(id)) {
+        this.addRemotePlayer(id, `Pilot-${id}`, 'telepotu')
+      }
+    }
   }
 
   setClientNetwork(client: P2PClient) {
     this.client = client
+    this.client.send({
+      type: 'join',
+      name: this.localPlayer.name,
+      character: this.localPlayer.character
+    })
+  }
+
+  onPeerConnected(peerId: number, name?: string, character?: CoreId) {
+    if (!this.players.has(peerId)) {
+      this.addRemotePlayer(peerId, name || `Pilot-${peerId}`, character || 'telepotu')
+    }
+  }
+
+  onPeerDisconnected(peerId: number) {
+    this.players.delete(peerId)
+  }
+
+  addRemotePlayer(id: number, name: string, character: CoreId) {
+    const openSpawns = this.map.spawns.filter(s => {
+      const d = Math.hypot(s.x, s.z)
+      return (d >= 40 && d <= 80) || d >= 240
+    })
+    const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
+    const spawn = spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50 }
+    const player: PlayerState = {
+      id,
+      name: name || `Pilot-${id}`,
+      character: character || 'telepotu',
+      x: spawn.x,
+      y: spawn.y,
+      z: spawn.z,
+      yaw: 0,
+      pitch: 0,
+      health: CFG.MAX_HEALTH,
+      score: 0,
+      alive: true,
+      respawnAt: 0,
+      crouching: false,
+      superActive: false,
+      superEnd: 0,
+      shieldActive: false,
+      shieldEnd: 0,
+      invisible: false,
+      lastAbilityAt: 0
+    }
+    this.players.set(id, player)
+    console.log(`[Host Engine] Registered remote player ${id} (${player.name})`)
   }
 
   start() {
@@ -516,11 +568,15 @@ export class GameEngine {
 
       const len = Math.hypot(mx, mz)
       const isRunning = this.keys['shift']
-      const speed = this.localPlayer.crouching
+      let speed = this.localPlayer.crouching
         ? CFG.CROUCH_SPEED
         : isRunning
         ? CFG.RUN_SPEED
         : CFG.PLAYER_SPEED
+
+      if (this.localPlayer.superActive) {
+        speed *= 2.0
+      }
 
       if (len > 0) {
         mx = (mx / len) * speed * dt
@@ -625,7 +681,10 @@ export class GameEngine {
       if (msg.right) { mx += Math.sin(p.yaw + Math.PI / 2); mz += Math.cos(p.yaw + Math.PI / 2) }
       const len = Math.hypot(mx, mz)
       if (len > 0) {
-        const speed = p.crouching ? CFG.CROUCH_SPEED : msg.run ? CFG.RUN_SPEED : CFG.PLAYER_SPEED
+        let speed = p.crouching ? CFG.CROUCH_SPEED : msg.run ? CFG.RUN_SPEED : CFG.PLAYER_SPEED
+        if (p.superActive) {
+          speed *= 2.0
+        }
         mx = (mx / len) * speed * msg.dt
         mz = (mz / len) * speed * msg.dt
         const col = resolveCollision(p.x + mx, p.y, p.z + mz, this.map, this.nearbyBoxes)
@@ -634,6 +693,22 @@ export class GameEngine {
       }
     } else if (msg.type === 'shoot' && fromId && this.players.has(fromId)) {
       this.processShot(this.players.get(fromId)!)
+    } else if (msg.type === 'welcome') {
+      this.localPlayer.id = msg.playerId
+      console.log(`[Client] Received welcome packet. Assigned player ID: ${msg.playerId}`)
+      this.client?.send({
+        type: 'join',
+        name: this.localPlayer.name,
+        character: this.localPlayer.character
+      })
+    } else if (msg.type === 'join' && fromId) {
+      const p = this.players.get(fromId)
+      if (p) {
+        p.name = msg.name
+        p.character = msg.character
+      } else {
+        this.addRemotePlayer(fromId, msg.name, msg.character)
+      }
     }
   }
 

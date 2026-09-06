@@ -157,8 +157,14 @@ const createNostrRoom = async () => {
 
   p2pHost = new P2PHost(
     (msg, fromId) => engine?.handleNetworkMessage(msg, fromId),
-    (peer) => console.log('Peer joined trial:', peer.id),
-    (id) => console.log('Peer left trial:', id)
+    (peer) => {
+      console.log('Peer joined trial:', peer.id)
+      engine?.onPeerConnected(peer.id)
+    },
+    (id) => {
+      console.log('Peer left trial:', id)
+      engine?.onPeerDisconnected(id)
+    }
   )
 
   // Listen for NOSTR signaling DMs
@@ -210,11 +216,13 @@ const hostLan = async () => {
   const seed = getDailySeed()
   p2pHost = new P2PHost(
     (msg, fromId) => engine?.handleNetworkMessage(msg, fromId),
-    () => {
+    (peer) => {
       lanModal.value.connectedPeersCount = (p2pHost?.peers.size || 0) + 1
+      engine?.onPeerConnected(peer.id)
     },
-    () => {
+    (id) => {
       lanModal.value.connectedPeersCount = (p2pHost?.peers.size || 0) + 1
+      engine?.onPeerDisconnected(id)
     }
   )
 
@@ -238,7 +246,7 @@ const hostLan = async () => {
               peerId: msg.peerId,
               answer
             }))
-          })
+          }, msg.peerId)
         }
       } catch (err) {
         console.warn('LAN signaling error:', err)

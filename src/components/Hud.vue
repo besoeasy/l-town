@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { CFG, CORE_DETAILS, type CoreId } from '../game/config'
 import type { PlayerState, KillMsg } from '../net/types'
 
@@ -10,6 +10,21 @@ const props = defineProps<{
   hitFlash: boolean
   hitConfirm: { show: boolean; amount: number; killed: boolean }
 }>()
+
+const currentTime = ref(Date.now())
+let timerRaf: number | null = null
+
+onMounted(() => {
+  const loop = () => {
+    currentTime.value = Date.now()
+    timerRaf = requestAnimationFrame(loop)
+  }
+  timerRaf = requestAnimationFrame(loop)
+})
+
+onUnmounted(() => {
+  if (timerRaf) cancelAnimationFrame(timerRaf)
+})
 
 const core = computed(() => CORE_DETAILS[props.player.character] || CORE_DETAILS.telepotu)
 
@@ -23,10 +38,57 @@ const formatTime = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const abilityReady = computed(() => {
-  if (core.value.cooldown <= 0) return true
-  const elapsed = Date.now() - (props.player.lastAbilityAt || 0)
-  return elapsed >= core.value.cooldown
+// Q Ability Timer
+const qTimeRemaining = computed(() => {
+  if (core.value.cooldown <= 0) return 0
+  const elapsed = currentTime.value - (props.player.lastAbilityAt || 0)
+  return Math.max(0, (core.value.cooldown - elapsed) / 1000)
+})
+
+const qPercent = computed(() => {
+  if (core.value.cooldown <= 0) return 100
+  const elapsed = currentTime.value - (props.player.lastAbilityAt || 0)
+  return Math.min(100, Math.max(0, (elapsed / core.value.cooldown) * 100))
+})
+
+const abilityReady = computed(() => qTimeRemaining.value <= 0)
+
+// E Super Timer (duration = 10s)
+const eTimeRemaining = computed(() => {
+  if (!props.player.superActive || !props.player.superEnd) return 0
+  return Math.max(0, (props.player.superEnd - currentTime.value) / 1000)
+})
+
+const ePercent = computed(() => {
+  if (props.player.superActive && props.player.superEnd) {
+    return Math.min(100, Math.max(0, (eTimeRemaining.value / (CFG.SUPER_DURATION / 1000)) * 100))
+  }
+  return props.player.health >= 51 ? 100 : Math.max(0, (props.player.health / 50) * 100)
+})
+
+// R Shield Timer (duration = 10s)
+const rTimeRemaining = computed(() => {
+  if (!props.player.shieldActive || !props.player.shieldEnd) return 0
+  return Math.max(0, (props.player.shieldEnd - currentTime.value) / 1000)
+})
+
+const rPercent = computed(() => {
+  if (props.player.shieldActive && props.player.shieldEnd) {
+    return Math.min(100, Math.max(0, (rTimeRemaining.value / (CFG.SHIELD_DURATION / 1000)) * 100))
+  }
+  return props.player.health >= 81 ? 100 : Math.max(0, (props.player.health / 80) * 100)
+})
+
+// C Crouch / Hull Fabrication Timer
+const cTimeRemaining = computed(() => {
+  if (props.player.health >= CFG.MAX_HEALTH) return 0
+  const needed = CFG.MAX_HEALTH - props.player.health
+  const rate = props.player.crouching ? CFG.REGEN_RATE * 3 : CFG.REGEN_RATE
+  return Math.max(0, needed / rate)
+})
+
+const cPercent = computed(() => {
+  return Math.min(100, Math.max(0, (props.player.health / CFG.MAX_HEALTH) * 100))
 })
 </script>
 
@@ -87,42 +149,136 @@ const abilityReady = computed(() => {
         </div>
       </div>
 
-      <!-- Action & Ability Indicators -->
+      <!-- Action & Ability Indicators with Border Timer Lines -->
       <div class="actions-panel">
         <!-- Q Ability -->
         <div class="action-card" :class="{ ready: abilityReady, cooldown: !abilityReady }">
-          <div class="key-bind">Q</div>
-          <div class="action-info">
-            <span class="action-name">{{ core.ability }}</span>
-            <span class="action-status">{{ abilityReady ? 'READY' : 'CHARGING' }}</span>
+          <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
+            <rect
+              x="1" y="1" width="98" height="98" rx="5"
+              class="svg-border-line"
+              pathLength="100"
+              :style="{
+                strokeDasharray: '100',
+                strokeDashoffset: `${100 - qPercent}`,
+                stroke: abilityReady ? '#00f0ff' : '#0ea5e9'
+              }"
+            />
+          </svg>
+          <div class="card-inner">
+            <div class="key-bind">Q</div>
+            <div class="action-info">
+              <span class="action-name">{{ core.ability }}</span>
+              <span class="action-status">{{ abilityReady ? 'READY' : `${qTimeRemaining.toFixed(1)}s` }}</span>
+            </div>
           </div>
+          <div
+            class="bottom-border-line"
+            :style="{
+              width: `${qPercent}%`,
+              backgroundColor: abilityReady ? '#00f0ff' : '#0ea5e9'
+            }"
+          ></div>
         </div>
 
         <!-- E Super -->
         <div class="action-card" :class="{ active: player.superActive }">
-          <div class="key-bind">E</div>
-          <div class="action-info">
-            <span class="action-name">SUPER (3× DMG)</span>
-            <span class="action-status">{{ player.superActive ? 'ACTIVE' : '50 HULL' }}</span>
+          <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
+            <rect
+              x="1" y="1" width="98" height="98" rx="5"
+              class="svg-border-line"
+              pathLength="100"
+              :style="{
+                strokeDasharray: '100',
+                strokeDashoffset: `${100 - ePercent}`,
+                stroke: player.superActive ? '#f59e0b' : '#78716c'
+              }"
+            />
+          </svg>
+          <div class="card-inner">
+            <div class="key-bind">E</div>
+            <div class="action-info">
+              <span class="action-name">SUPER (2× SPD, 3× DMG)</span>
+              <span class="action-status">
+                {{ player.superActive ? `${eTimeRemaining.toFixed(1)}s LEFT` : '50 HULL' }}
+              </span>
+            </div>
           </div>
+          <div
+            class="bottom-border-line"
+            :style="{
+              width: `${ePercent}%`,
+              backgroundColor: player.superActive ? '#f59e0b' : 'rgba(245, 158, 11, 0.4)'
+            }"
+          ></div>
         </div>
 
         <!-- R Shield -->
         <div class="action-card" :class="{ active: player.shieldActive }">
-          <div class="key-bind">R</div>
-          <div class="action-info">
-            <span class="action-name">SHIELD</span>
-            <span class="action-status">{{ player.shieldActive ? 'IMMUNE' : '80 HULL' }}</span>
+          <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
+            <rect
+              x="1" y="1" width="98" height="98" rx="5"
+              class="svg-border-line"
+              pathLength="100"
+              :style="{
+                strokeDasharray: '100',
+                strokeDashoffset: `${100 - rPercent}`,
+                stroke: player.shieldActive ? '#00f0ff' : '#64748b'
+              }"
+            />
+          </svg>
+          <div class="card-inner">
+            <div class="key-bind">R</div>
+            <div class="action-info">
+              <span class="action-name">SHIELD</span>
+              <span class="action-status">
+                {{ player.shieldActive ? `${rTimeRemaining.toFixed(1)}s IMMUNE` : '80 HULL' }}
+              </span>
+            </div>
           </div>
+          <div
+            class="bottom-border-line"
+            :style="{
+              width: `${rPercent}%`,
+              backgroundColor: player.shieldActive ? '#00f0ff' : 'rgba(0, 240, 255, 0.4)'
+            }"
+          ></div>
         </div>
 
         <!-- C Crouch / Space Jump -->
         <div class="action-card" :class="{ active: player.crouching }">
-          <div class="key-bind">C</div>
-          <div class="action-info">
-            <span class="action-name">CROUCH</span>
-            <span class="action-status">{{ player.crouching ? '3× REGEN' : 'STAND' }}</span>
+          <svg class="card-border-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <rect x="1" y="1" width="98" height="98" rx="5" class="svg-border-track" />
+            <rect
+              x="1" y="1" width="98" height="98" rx="5"
+              class="svg-border-line"
+              pathLength="100"
+              :style="{
+                strokeDasharray: '100',
+                strokeDashoffset: `${100 - cPercent}`,
+                stroke: player.crouching ? '#10b981' : '#475569'
+              }"
+            />
+          </svg>
+          <div class="card-inner">
+            <div class="key-bind">C</div>
+            <div class="action-info">
+              <span class="action-name">CROUCH</span>
+              <span class="action-status">
+                {{ player.crouching ? (cTimeRemaining > 0 ? `${cTimeRemaining.toFixed(1)}s (3× REGEN)` : 'FULL HULL') : 'STAND' }}
+              </span>
+            </div>
           </div>
+          <div
+            class="bottom-border-line"
+            :style="{
+              width: `${cPercent}%`,
+              backgroundColor: player.crouching ? '#10b981' : 'rgba(16, 185, 129, 0.4)'
+            }"
+          ></div>
         </div>
       </div>
     </div>
@@ -373,28 +529,72 @@ const abilityReady = computed(() => {
 }
 
 .action-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  background: rgba(11, 14, 22, 0.88);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  min-width: 140px;
+}
+
+.card-inner {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(11, 14, 22, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 6px 14px;
-  border-radius: 6px;
-  backdrop-filter: blur(8px);
+  padding: 8px 14px;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+.card-border-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.svg-border-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.svg-border-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-dashoffset 0.08s linear;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.bottom-border-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  z-index: 3;
+  transition: width 0.08s linear;
+  box-shadow: 0 0 6px currentColor;
 }
 
 .action-card.ready {
-  border-color: #00f0ff;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
 }
 
 .action-card.active {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
 }
 
 .action-card.cooldown {
-  opacity: 0.6;
+  opacity: 0.75;
 }
 
 .key-bind {

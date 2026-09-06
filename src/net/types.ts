@@ -115,6 +115,12 @@ export interface WelcomeMsg {
   hostId: number
 }
 
+export interface JoinMsg {
+  type: 'join'
+  name: string
+  character: CoreId
+}
+
 export type NetMessage =
   | GameStateMsg
   | InputMsg
@@ -131,6 +137,7 @@ export type NetMessage =
   | KillMsg
   | TeleportedMsg
   | WelcomeMsg
+  | JoinMsg
 
 export interface NostrRoom {
   id: string

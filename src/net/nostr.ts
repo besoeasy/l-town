@@ -16,6 +16,9 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 export const NOSTR_RELAYS = [
+  typeof window !== 'undefined'
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/nostr`
+    : 'ws://127.0.0.1:30300/nostr',
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net'

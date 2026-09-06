@@ -69,6 +69,77 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// ── Embedded Lightweight NOSTR Relay (NIP-01) ────────────────────────────────
+const nostrEvents = [];
+const nostrSubs = new Map(); // ws -> Map(subId -> filter)
+
+function matchNostrFilter(ev, f) {
+  if (f.ids && !f.ids.includes(ev.id)) return false;
+  if (f.authors && !f.authors.includes(ev.pubkey)) return false;
+  if (f.kinds && !f.kinds.includes(ev.kind)) return false;
+  if (f['#t']) {
+    const tags = ev.tags.filter(t => t[0] === 't').map(t => t[1]);
+    if (!tags.some(t => f['#t'].includes(t))) return false;
+  }
+  if (f['#p']) {
+    const tags = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
+    if (!tags.some(p => f['#p'].includes(p))) return false;
+  }
+  return true;
+}
+
+function handleNostrConnection(ws) {
+  nostrSubs.set(ws, new Map());
+
+  ws.on('message', (raw) => {
+    try {
+      const data = JSON.parse(raw.toString());
+      const cmd = data[0];
+
+      if (cmd === 'EVENT') {
+        const ev = data[1];
+        if (ev && ev.id) {
+          nostrEvents.push(ev);
+          if (nostrEvents.length > 500) nostrEvents.shift();
+          ws.send(JSON.stringify(['OK', ev.id, true, '']));
+
+          for (const [subWs, subs] of nostrSubs) {
+            if (subWs.readyState === 1) {
+              for (const [subId, filter] of subs) {
+                if (matchNostrFilter(ev, filter)) {
+                  subWs.send(JSON.stringify(['EVENT', subId, ev]));
+                }
+              }
+            }
+          }
+        }
+      } else if (cmd === 'REQ') {
+        const subId = data[1];
+        const filter = data[2] || {};
+        const subs = nostrSubs.get(ws);
+        if (subs) subs.set(subId, filter);
+
+        for (const ev of nostrEvents) {
+          if (matchNostrFilter(ev, filter)) {
+            ws.send(JSON.stringify(['EVENT', subId, ev]));
+          }
+        }
+        ws.send(JSON.stringify(['EOSE', subId]));
+      } else if (cmd === 'CLOSE') {
+        const subId = data[1];
+        const subs = nostrSubs.get(ws);
+        if (subs) subs.delete(subId);
+      }
+    } catch (err) {
+      console.warn('NOSTR relay error:', err);
+    }
+  });
+
+  ws.on('close', () => {
+    nostrSubs.delete(ws);
+  });
+}
+
 // ── LAN WebSocket Signaling Broker ──────────────────────────────────────────
 const wss = new WebSocketServer({ server });
 let activeHostWs = null;
@@ -76,7 +147,12 @@ let activeHostInfo = null;
 const peers = new Map(); // peerId -> ws
 let nextPeerId = 2;
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  if (req && req.url && req.url.startsWith('/nostr')) {
+    handleNostrConnection(ws);
+    return;
+  }
+
   let myPeerId = null;
   let isHost = false;
 

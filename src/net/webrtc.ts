@@ -33,9 +33,10 @@ export class P2PHost {
 
   async handleIncomingOffer(
     offer: RTCSessionDescriptionInit,
-    onSignalReady: (answer: RTCSessionDescriptionInit) => void
+    onSignalReady: (answer: RTCSessionDescriptionInit) => void,
+    assignedId?: number
   ): Promise<number> {
-    const playerId = this.nextPlayerId++
+    const playerId = assignedId || this.nextPlayerId++
     const pc = new RTCPeerConnection(RTC_CONFIG)
     const peer: PeerConnection = {
       id: playerId,
@@ -79,6 +80,12 @@ export class P2PHost {
     if (!peer.dc) return
     peer.dc.onopen = () => {
       console.log(`[Host] Peer ${peer.id} connected via DataChannel`)
+      peer.dc?.send(JSON.stringify({
+        type: 'welcome',
+        playerId: peer.id,
+        seed: 12345,
+        hostId: 1
+      }))
       if (this.onPeerJoinedCallback) {
         this.onPeerJoinedCallback(peer)
       }
@@ -153,8 +160,7 @@ export class P2PClient {
   async createOffer(onSignalReady: (offer: RTCSessionDescriptionInit) => void): Promise<RTCPeerConnection> {
     this.pc = new RTCPeerConnection(RTC_CONFIG)
     this.dc = this.pc.createDataChannel('game', {
-      ordered: false,
-      maxRetransmits: 0 // low-latency unreliable for game ticks
+      ordered: true
     })
 
     this.dc.onopen = () => {
