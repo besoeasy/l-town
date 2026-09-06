@@ -1,4 +1,0 @@
-html,body{margin:0;height:100%;background:#060d16;color:#edf7fb;font-family:Inter,sans-serif;overflow:hidden}
-#canvas{width:100%;height:100%;display:block}
-.lobby{position:fixed;inset:0;display:grid;place-content:center;gap:12px;background:#060d16;z-index:10}
-#hud{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:16px;background:rgba(8,17,25,.92);padding:6px 14px;border-radius:999px}
