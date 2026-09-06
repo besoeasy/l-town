@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 const props = defineProps<{
   show: boolean
-  leaderboard: { id: number; name: string; score: number }[]
+  leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]
   hvtId: number | null
   localPlayerId: number
 }>()
@@ -23,6 +23,7 @@ const props = defineProps<{
             <th>RANK</th>
             <th>CALLSIGN</th>
             <th>STATUS</th>
+            <th>PING</th>
             <th>SCORE (FRAGS)</th>
           </tr>
         </thead>
@@ -48,7 +49,11 @@ const props = defineProps<{
             </td>
             <td class="status-col">
               <span v-if="pilot.id === hvtId" class="hvt-tag">TARGET</span>
+              <span v-else-if="pilot.isBot" class="bot-tag">AI BOT</span>
               <span v-else class="online-tag">LINKED</span>
+            </td>
+            <td class="ping-col">
+              <span class="ping-text">{{ pilot.ping ? `${pilot.ping}ms` : '<1ms' }}</span>
             </td>
             <td class="score-col">{{ pilot.score }}</td>
           </tr>
@@ -165,6 +170,21 @@ const props = defineProps<{
 .online-tag {
   color: #10b981;
   font-size: 11px;
+}
+
+.bot-tag {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.ping-col {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #10b981;
 }
 
 .score-col {

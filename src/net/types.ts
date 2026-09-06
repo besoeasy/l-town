@@ -21,6 +21,7 @@ export interface PlayerState {
   invisible: boolean
   lastAbilityAt: number
   isBot?: boolean
+  ping?: number
 }
 
 export interface GameStateMsg {
@@ -30,7 +31,7 @@ export interface GameStateMsg {
   playerCount: number
   aliveCount: number
   highValueTargetId: number | null
-  leaderboard: { id: number; name: string; score: number }[]
+  leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]
   players: PlayerState[]
 }
 
@@ -48,6 +49,12 @@ export interface InputMsg {
 
 export interface ShootMsg {
   type: 'shoot'
+  ox?: number
+  oy?: number
+  oz?: number
+  dx?: number
+  dy?: number
+  dz?: number
 }
 
 export interface ChargedShootMsg {
@@ -121,6 +128,37 @@ export interface JoinMsg {
   character: CoreId
 }
 
+export interface PingMsg {
+  type: 'ping'
+  t: number
+  fromId?: number
+}
+
+export interface PongMsg {
+  type: 'pong'
+  t: number
+  fromId?: number
+}
+
+export interface ProjectileMsg {
+  type: 'projectile'
+  ox: number
+  oy: number
+  oz: number
+  dx: number
+  dy: number
+  dz: number
+  shooterId: number
+  superActive: boolean
+}
+
+export interface MatchEndMsg {
+  type: 'matchEnd'
+  winnerId: number
+  winnerName: string
+  winnerScore: number
+}
+
 export type NetMessage =
   | GameStateMsg
   | InputMsg
@@ -138,6 +176,30 @@ export type NetMessage =
   | TeleportedMsg
   | WelcomeMsg
   | JoinMsg
+  | PingMsg
+  | PongMsg
+  | ProjectileMsg
+  | MatchEndMsg
+
+export interface TelemetryData {
+  ping: number
+  fps: number
+  connectedPlayers: number
+  humanPlayers: number
+  botPlayers: number
+  mode: 'solo' | 'host' | 'client'
+  tickRate: number
+}
+
+export interface MatchResults {
+  rank: number
+  totalPlayers: number
+  winnerName: string
+  winnerScore: number
+  playerScore: number
+  isWinner: boolean
+  leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]
+}
 
 export interface NostrRoom {
   id: string

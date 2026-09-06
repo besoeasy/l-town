@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { CFG, CORE_DETAILS, type CoreId } from '../game/config'
-import type { PlayerState, KillMsg } from '../net/types'
+import type { PlayerState, KillMsg, TelemetryData } from '../net/types'
 
 const props = defineProps<{
   player: PlayerState
@@ -9,10 +9,26 @@ const props = defineProps<{
   killFeed: KillMsg[]
   hitFlash: boolean
   hitConfirm: { show: boolean; amount: number; killed: boolean }
+  telemetry?: TelemetryData
 }>()
 
 const currentTime = ref(Date.now())
 let timerRaf: number | null = null
+
+const pingColor = computed(() => {
+  const p = props.telemetry?.ping ?? 0
+  if (p < 50) return '#10b981'
+  if (p < 100) return '#00f0ff'
+  if (p < 150) return '#f59e0b'
+  return '#ef4444'
+})
+
+const modeLabel = computed(() => {
+  const m = props.telemetry?.mode || 'solo'
+  if (m === 'host') return 'LAN HOST'
+  if (m === 'client') return 'P2P PEER'
+  return 'SOLO'
+})
 
 onMounted(() => {
   const loop = () => {
@@ -97,12 +113,58 @@ const cPercent = computed(() => {
 
 <template>
   <div class="hud-overlay" :class="{ 'hit-vignette': hitFlash }">
+    <!-- Blueish Kinetic Shield Overlay (when Shield is active) -->
+    <div
+      v-if="player.shieldActive && rTimeRemaining > 0"
+      class="shield-active-overlay"
+    >
+      <div class="shield-hex-grid"></div>
+      <div class="shield-corner-bracket bracket-tl"></div>
+      <div class="shield-corner-bracket bracket-tr"></div>
+      <div class="shield-corner-bracket bracket-bl"></div>
+      <div class="shield-corner-bracket bracket-br"></div>
+      <div class="shield-status-banner">
+        <span class="shield-icon">🛡️</span>
+        <span class="shield-title">DEFLECTOR BARRIER ACTIVE</span>
+        <span class="shield-time-left">{{ rTimeRemaining.toFixed(1) }}s IMMUNITY</span>
+      </div>
+    </div>
+
     <!-- Top Match Header -->
     <div class="hud-top">
       <div class="match-timer">
         <span class="timer-label">TRIAL CLOCK</span>
         <span class="timer-val">{{ formatTime(matchTime) }}</span>
       </div>
+
+      <!-- Live Networking & Performance Telemetry -->
+      <div class="telemetry-bar">
+        <div class="telem-chip">
+          <span class="telem-label">PING</span>
+          <span class="telem-val" :style="{ color: pingColor }">
+            {{ telemetry?.mode === 'solo' ? '<1ms' : `${telemetry?.ping ?? 0}ms` }}
+          </span>
+        </div>
+        <div class="telem-chip">
+          <span class="telem-label">PILOTS</span>
+          <span class="telem-val text-cyan">
+            {{ telemetry?.mode === 'solo' ? `${telemetry.humanPlayers || 1}P + ${telemetry.botPlayers || 7}B` : `${telemetry?.connectedPlayers || 1} / 16` }}
+          </span>
+        </div>
+        <div class="telem-chip">
+          <span class="telem-label">FPS</span>
+          <span class="telem-val text-emerald">{{ telemetry?.fps ?? 60 }}</span>
+        </div>
+        <div class="telem-chip">
+          <span class="telem-label">NET</span>
+          <span class="telem-val text-white">{{ modeLabel }}</span>
+        </div>
+        <div class="telem-chip">
+          <span class="telem-label">SIM</span>
+          <span class="telem-val text-muted">{{ telemetry?.tickRate ?? 20 }}Hz</span>
+        </div>
+      </div>
+
       <div class="pilot-badge">
         <span class="core-icon">{{ core.badge }}</span>
         <span class="core-name">{{ core.name }}</span>
@@ -662,5 +724,151 @@ const cPercent = computed(() => {
   0% { opacity: 0; transform: translateY(10px); }
   50% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* Live Telemetry Header Bar */
+.telemetry-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 14, 22, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 6px;
+  padding: 6px 14px;
+  backdrop-filter: blur(8px);
+}
+
+.telem-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+}
+
+.telem-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.telem-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.text-cyan { color: #00f0ff; }
+.text-emerald { color: #10b981; }
+.text-white { color: #ffffff; }
+.text-muted { color: rgba(255, 255, 255, 0.65); }
+
+/* Fullscreen Blueish Kinetic Shield Overlay */
+.shield-active-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: inset 0 0 110px rgba(0, 240, 255, 0.42), inset 0 0 45px rgba(0, 180, 255, 0.25);
+  animation: shieldPulse 1.8s infinite ease-in-out;
+}
+
+.shield-hex-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(rgba(0, 240, 255, 0.12) 18%, transparent 19%),
+    radial-gradient(rgba(0, 240, 255, 0.08) 18%, transparent 19%);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  opacity: 0.65;
+}
+
+.shield-corner-bracket {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-color: #00f0ff;
+  border-style: solid;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 8px #00f0ff);
+}
+
+.bracket-tl {
+  top: 14px;
+  left: 14px;
+  border-width: 3px 0 0 3px;
+  border-top-left-radius: 6px;
+}
+
+.bracket-tr {
+  top: 14px;
+  right: 14px;
+  border-width: 3px 3px 0 0;
+  border-top-right-radius: 6px;
+}
+
+.bracket-bl {
+  bottom: 14px;
+  left: 14px;
+  border-width: 0 0 3px 3px;
+  border-bottom-left-radius: 6px;
+}
+
+.bracket-br {
+  bottom: 14px;
+  right: 14px;
+  border-width: 0 3px 3px 0;
+  border-bottom-right-radius: 6px;
+}
+
+.shield-status-banner {
+  position: absolute;
+  top: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(11, 17, 28, 0.92);
+  border: 1px solid #00f0ff;
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: bannerGlow 1.2s infinite alternate ease-in-out;
+}
+
+.shield-icon {
+  font-size: 18px;
+}
+
+.shield-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #00f0ff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+
+.shield-time-left {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e0f2fe;
+  background: rgba(0, 240, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+@keyframes shieldPulse {
+  0% { opacity: 0.85; }
+  50% { opacity: 1; box-shadow: inset 0 0 140px rgba(0, 240, 255, 0.55), inset 0 0 60px rgba(0, 240, 255, 0.35); }
+  100% { opacity: 0.85; }
+}
+
+@keyframes bannerGlow {
+  0% { box-shadow: 0 0 15px rgba(0, 240, 255, 0.4); }
+  100% { box-shadow: 0 0 30px rgba(0, 240, 255, 0.7); }
 }
 </style>

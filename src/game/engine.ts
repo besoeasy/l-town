@@ -4,17 +4,23 @@ import { createBoxGrid, resolveCollision, raycastPlayers } from './physics'
 import { spawnBots, tickBots } from './bots'
 import { sound } from './audio'
 import type { SceneRenderer } from './scene'
-import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg } from '../net/types'
+import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg, TelemetryData, MatchResults } from '../net/types'
 import { P2PHost, P2PClient } from '../net/webrtc'
 
 export type GameMode = 'solo' | 'host' | 'client'
 
 export interface GameCallbacks {
-  onHudUpdate: (player: PlayerState, matchTime: number, hvtId: number | null) => void
+  onHudUpdate: (
+    player: PlayerState,
+    matchTime: number,
+    hvtId: number | null,
+    telemetry: TelemetryData
+  ) => void
   onHit: (amount: number) => void
   onHitConfirm: (msg: HitConfirmMsg) => void
   onKill: (msg: KillMsg) => void
-  onLeaderboardUpdate: (leaderboard: { id: number; name: string; score: number }[]) => void
+  onLeaderboardUpdate: (leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]) => void
+  onMatchEnd: (results: MatchResults) => void
 }
 
 export class GameEngine {
@@ -26,6 +32,9 @@ export class GameEngine {
   public matchTime = CFG.MATCH_DURATION
   public isRunning = false
   public isPointerLocked = false
+  public isGameOver = false
+  public ping = 0
+  public fps = 60
 
   private keys: Record<string, boolean> = {}
   private scene: SceneRenderer
@@ -33,6 +42,9 @@ export class GameEngine {
   private host: P2PHost | null = null
   private client: P2PClient | null = null
   private tickInterval: any = null
+  private pingInterval: any = null
+  private frameCount = 0
+  private lastFpsUpdate = performance.now()
   private lastFrameTime = performance.now()
   private vy = 0
   private lastShotTime = 0
@@ -151,7 +163,10 @@ export class GameEngine {
 
   start() {
     this.isRunning = true
+    this.isGameOver = false
     this.lastFrameTime = performance.now()
+    this.lastFpsUpdate = performance.now()
+    this.frameCount = 0
 
     if (this.mode === 'solo') {
       const bots = spawnBots(7, this.map)
@@ -162,6 +177,21 @@ export class GameEngine {
 
     if (this.mode === 'solo' || this.mode === 'host') {
       this.tickInterval = setInterval(() => this.authoritativeTick(), CFG.TICK_MS)
+    }
+
+    // Ping interval for WebRTC RTT tracking
+    if (this.mode === 'client') {
+      this.pingInterval = setInterval(() => {
+        if (this.client?.isConnected) {
+          this.client.send({ type: 'ping', t: performance.now() })
+        }
+      }, 1000)
+    } else if (this.mode === 'host') {
+      this.pingInterval = setInterval(() => {
+        if (this.host && this.host.peers.size > 0) {
+          this.host.broadcast({ type: 'ping', t: performance.now() })
+        }
+      }, 1000)
     }
 
     requestAnimationFrame(this.renderLoop)
@@ -372,13 +402,37 @@ export class GameEngine {
     this.lastHitTime = now
     sound.playShoot(this.localPlayer.superActive)
 
+    const yaw = this.localPlayer.yaw, pitch = this.localPlayer.pitch
+    const dx = -Math.cos(pitch) * Math.sin(yaw)
+    const dy = Math.sin(pitch)
+    const dz = -Math.cos(pitch) * Math.cos(yaw)
+    const ox = this.localPlayer.x
+    const oy = this.localPlayer.y + CFG.EYE_HEIGHT - 0.1
+    const oz = this.localPlayer.z
+
+    // 1. Robot hand recoil & muzzle flash
+    this.scene.triggerShoot(this.localPlayer.superActive)
+
+    // 2. Visible traveling energy packet
+    this.scene.spawnProjectile(ox, oy, oz, dx, dy, dz, this.localPlayer.superActive)
+
     if (this.mode === 'client') {
-      this.client?.send({ type: 'shoot' })
+      this.client?.send({ type: 'shoot', ox, oy, oz, dx, dy, dz })
       return
     }
 
     // Host or Solo hitscan
     this.processShot(this.localPlayer)
+
+    if (this.host) {
+      this.host.broadcast({
+        type: 'projectile',
+        ox, oy, oz,
+        dx, dy, dz,
+        shooterId: this.localPlayer.id,
+        superActive: this.localPlayer.superActive
+      })
+    }
   }
 
   private processShot(shooter: PlayerState) {
@@ -482,6 +536,8 @@ export class GameEngine {
         const dz = target.z - bot.z
         const len = Math.hypot(dx, dy, dz)
         if (len > 0) {
+          // Visible projectile for bot shot
+          this.scene.spawnProjectile(bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, false)
           const hit = raycastPlayers(bot.id, bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, targets, this.map)
           if (hit) {
             this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5, bot.id)
@@ -519,9 +575,19 @@ export class GameEngine {
 
     // Update leaderboard & HVT
     const ranked = [...this.players.values()].sort((a, b) => b.score - a.score)
-    const leaderboard = ranked.slice(0, 5).map(p => ({ id: p.id, name: p.name, score: p.score }))
+    const leaderboard = ranked.slice(0, 5).map(p => ({
+      id: p.id,
+      name: p.name,
+      score: p.score,
+      isBot: p.isBot,
+      ping: p.ping || (p.id === this.localPlayer.id ? (this.mode === 'solo' ? 0 : this.ping) : 0)
+    }))
     const hvt = ranked.find(p => p.alive && p.score > 0) || null
     this.callbacks.onLeaderboardUpdate(leaderboard)
+
+    if (this.matchTime <= 0 && !this.isGameOver) {
+      this.finishMatch()
+    }
 
     // Broadcast state if hosting
     if (this.host) {
@@ -537,6 +603,43 @@ export class GameEngine {
       }
       this.host.broadcast(stateMsg)
     }
+  }
+
+  public finishMatch() {
+    if (this.isGameOver) return
+    this.isGameOver = true
+    document.exitPointerLock?.()
+
+    const ranked = [...this.players.values()].sort((a, b) => b.score - a.score)
+    const winner = ranked[0]
+    const localRank = ranked.findIndex(p => p.id === this.localPlayer.id) + 1
+
+    const results: MatchResults = {
+      rank: localRank > 0 ? localRank : 1,
+      totalPlayers: this.players.size,
+      winnerName: winner ? winner.name : this.localPlayer.name,
+      winnerScore: winner ? winner.score : this.localPlayer.score,
+      playerScore: this.localPlayer.score,
+      isWinner: winner ? winner.id === this.localPlayer.id : true,
+      leaderboard: ranked.map(p => ({
+        id: p.id,
+        name: p.name,
+        score: p.score,
+        isBot: p.isBot,
+        ping: p.ping || (p.id === this.localPlayer.id ? (this.mode === 'solo' ? 0 : this.ping) : 0)
+      }))
+    }
+
+    if (this.host) {
+      this.host.broadcast({
+        type: 'matchEnd',
+        winnerId: winner?.id || 1,
+        winnerName: winner?.name || 'Pilot',
+        winnerScore: winner?.score || 0
+      })
+    }
+
+    this.callbacks.onMatchEnd(results)
   }
 
   private isOnGround(p: PlayerState): boolean {
@@ -638,10 +741,37 @@ export class GameEngine {
 
     // Update 3D scene players
     this.scene.updatePlayers([...this.players.values()], this.localPlayer.id)
-    this.scene.render(dt)
+    const isMoving = this.localPlayer.alive && (!!this.keys['w'] || !!this.keys['s'] || !!this.keys['a'] || !!this.keys['d'])
+    this.scene.render(dt, isMoving, this.localPlayer.superActive, this.localPlayer.shieldActive)
+
+    // Calculate rolling FPS
+    this.frameCount++
+    if (time - this.lastFpsUpdate >= 500) {
+      this.fps = Math.round((this.frameCount * 1000) / (time - this.lastFpsUpdate))
+      this.frameCount = 0
+      this.lastFpsUpdate = time
+    }
+
+    const humanCount = [...this.players.values()].filter(p => !p.isBot).length
+    const botCount = [...this.players.values()].filter(p => p.isBot).length
+
+    const telemetry: TelemetryData = {
+      ping: this.mode === 'solo' ? 0 : this.ping,
+      fps: this.fps,
+      connectedPlayers: this.players.size,
+      humanPlayers: humanCount,
+      botPlayers: botCount,
+      mode: this.mode,
+      tickRate: 20
+    }
+
+    // Check match completion in render loop
+    if (this.matchTime <= 0 && !this.isGameOver) {
+      this.finishMatch()
+    }
 
     // Notify UI
-    this.callbacks.onHudUpdate(this.localPlayer, this.matchTime, null)
+    this.callbacks.onHudUpdate(this.localPlayer, this.matchTime, null, telemetry)
 
     requestAnimationFrame(this.renderLoop)
   }
@@ -649,6 +779,9 @@ export class GameEngine {
   handleNetworkMessage(msg: NetMessage, fromId?: number) {
     if (msg.type === 'gameState') {
       this.matchTime = msg.matchTime
+      if (this.matchTime <= 0 && !this.isGameOver) {
+        this.finishMatch()
+      }
       for (const p of msg.players) {
         if (p.id === this.localPlayer.id) {
           // Sync server-authoritative health, score, status
@@ -692,7 +825,45 @@ export class GameEngine {
         p.z = col.z
       }
     } else if (msg.type === 'shoot' && fromId && this.players.has(fromId)) {
-      this.processShot(this.players.get(fromId)!)
+      const shooter = this.players.get(fromId)!
+      this.processShot(shooter)
+      const yaw = shooter.yaw, pitch = shooter.pitch
+      const dx = msg.dx ?? (-Math.cos(pitch) * Math.sin(yaw))
+      const dy = msg.dy ?? Math.sin(pitch)
+      const dz = msg.dz ?? (-Math.cos(pitch) * Math.cos(yaw))
+      const ox = msg.ox ?? shooter.x
+      const oy = msg.oy ?? (shooter.y + CFG.EYE_HEIGHT - 0.1)
+      const oz = msg.oz ?? shooter.z
+
+      // Host spawns projectile so host can see remote shot
+      this.scene.spawnProjectile(ox, oy, oz, dx, dy, dz, shooter.superActive)
+
+      // Host broadcasts to all other clients
+      if (this.host) {
+        this.host.broadcast({
+          type: 'projectile',
+          ox, oy, oz,
+          dx, dy, dz,
+          shooterId: shooter.id,
+          superActive: shooter.superActive
+        }, fromId)
+      }
+    } else if (msg.type === 'projectile') {
+      this.scene.spawnProjectile(msg.ox, msg.oy, msg.oz, msg.dx, msg.dy, msg.dz, msg.superActive)
+    } else if (msg.type === 'ping') {
+      if (this.mode === 'client') {
+        this.client?.send({ type: 'pong', t: msg.t })
+      } else if (this.mode === 'host' && fromId) {
+        this.host?.sendTo(fromId, { type: 'pong', t: msg.t, fromId })
+      }
+    } else if (msg.type === 'pong') {
+      const rtt = Math.max(1, Math.round(performance.now() - msg.t))
+      this.ping = this.ping ? Math.round(this.ping * 0.7 + rtt * 0.3) : rtt
+      if (fromId && this.players.has(fromId)) {
+        this.players.get(fromId)!.ping = rtt
+      }
+    } else if (msg.type === 'matchEnd') {
+      this.finishMatch()
     } else if (msg.type === 'welcome') {
       this.localPlayer.id = msg.playerId
       console.log(`[Client] Received welcome packet. Assigned player ID: ${msg.playerId}`)
@@ -734,6 +905,7 @@ export class GameEngine {
   destroy() {
     this.isRunning = false
     if (this.tickInterval) clearInterval(this.tickInterval)
+    if (this.pingInterval) clearInterval(this.pingInterval)
     sound.stopFootsteps()
     sound.stopRecharge()
     this.scene.destroy()

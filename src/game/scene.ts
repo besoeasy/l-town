@@ -11,6 +11,19 @@ export class SceneRenderer {
   private playerMeshes = new Map<number, THREE.Group>()
   private clouds: THREE.Mesh[] = []
 
+  // First-Person Robot Arm Viewmodel & Effects
+  private robotArm!: THREE.Group
+  private armConduitMat!: THREE.MeshBasicMaterial
+  private armCoreMat!: THREE.MeshBasicMaterial
+  private muzzleFlash!: THREE.Group
+  private muzzleFlashTime = 0
+  private armRecoil = 0
+  private armRecoilRot = 0
+  private bobTimer = 0
+  private firstPersonShield!: THREE.Group
+  private projectiles: { mesh: THREE.Group; vel: THREE.Vector3; dist: number; maxDist: number }[] = []
+  private sparks: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number }[] = []
+
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene()
     // Atmospheric daytime depth haze (bright sky blue)
@@ -35,6 +48,11 @@ export class SceneRenderer {
     this.setupCosmos()
     this.setupClouds()
 
+    // Add camera to scene graph so camera children (robot arm, FP shield) render in camera space
+    this.scene.add(this.camera)
+    this.setupRobotArm()
+    this.setupFirstPersonShield()
+
     window.addEventListener('resize', this.onResize)
   }
 
@@ -42,6 +60,143 @@ export class SceneRenderer {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(window.innerWidth, window.innerHeight)
+  }
+
+  private setupRobotArm() {
+    this.robotArm = new THREE.Group()
+    this.robotArm.name = 'robotArm'
+    this.robotArm.position.set(0.28, -0.22, -0.42)
+    this.robotArm.rotation.set(0.05, -0.06, -0.04)
+
+    const armMetalMat = new THREE.MeshStandardMaterial({
+      color: 0x1e242e,
+      roughness: 0.35,
+      metalness: 0.85
+    })
+    const armJointMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.25,
+      metalness: 0.95
+    })
+    this.armConduitMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    this.armCoreMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+
+    // Forearm main sleeve
+    const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.34), armMetalMat)
+    sleeve.position.set(0, 0, 0.12)
+    this.robotArm.add(sleeve)
+
+    // Top armor plate
+    const topPlate = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.025, 0.28), armJointMat)
+    topPlate.position.set(0, 0.055, 0.11)
+    this.robotArm.add(topPlate)
+
+    // Glowing energy conduits along forearm
+    const conduitGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.32, 8)
+    const leftConduit = new THREE.Mesh(conduitGeo, this.armConduitMat)
+    leftConduit.rotation.x = Math.PI / 2
+    leftConduit.position.set(-0.045, 0.045, 0.12)
+    this.robotArm.add(leftConduit)
+
+    const rightConduit = new THREE.Mesh(conduitGeo, this.armConduitMat)
+    rightConduit.rotation.x = Math.PI / 2
+    rightConduit.position.set(0.045, 0.045, 0.12)
+    this.robotArm.add(rightConduit)
+
+    // Articulated wrist gimbal
+    const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 16), armJointMat)
+    wrist.rotation.z = Math.PI / 2
+    wrist.position.set(0, 0, -0.04)
+    this.robotArm.add(wrist)
+
+    // Palm base
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.045, 0.1), armMetalMat)
+    palm.position.set(0, 0, -0.1)
+    this.robotArm.add(palm)
+
+    // Central Palm Blaster Barrel & Energy Reactor Core
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.038, 0.07, 16), armJointMat)
+    barrel.rotation.x = Math.PI / 2
+    barrel.position.set(0, 0.005, -0.15)
+    this.robotArm.add(barrel)
+
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), this.armCoreMat)
+    core.position.set(0, 0.005, -0.15)
+    this.robotArm.add(core)
+
+    // Articulated robotic fingers in firing grip posture
+    const fingerMat = armJointMat
+    const tipMat = this.armConduitMat
+
+    const addFinger = (x: number, y: number, z: number, len: number, angleX = 0) => {
+      const fGroup = new THREE.Group()
+      fGroup.position.set(x, y, z)
+      fGroup.rotation.x = angleX
+
+      const phalanx = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, len), fingerMat)
+      phalanx.position.z = -len / 2
+      fGroup.add(phalanx)
+
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.015), tipMat)
+      tip.position.z = -len - 0.007
+      fGroup.add(tip)
+
+      this.robotArm.add(fGroup)
+    }
+
+    addFinger(0.032, 0.01, -0.15, 0.07, 0.1)   // Index
+    addFinger(0.011, 0.012, -0.15, 0.08, 0.08)  // Middle
+    addFinger(-0.011, 0.012, -0.15, 0.075, 0.1) // Ring
+    addFinger(-0.032, 0.01, -0.15, 0.06, 0.14)  // Pinky
+
+    // Thumb on inner edge
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.02, 0.05), fingerMat)
+    thumb.position.set(-0.048, -0.01, -0.11)
+    thumb.rotation.y = 0.4
+    this.robotArm.add(thumb)
+
+    // Muzzle Flash Effect
+    this.muzzleFlash = new THREE.Group()
+    this.muzzleFlash.position.set(0, 0.005, -0.22)
+    const flashCore = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), this.armCoreMat)
+    const flashCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 0.01), this.armCoreMat)
+    const flashCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.18, 0.01), this.armCoreMat)
+    this.muzzleFlash.add(flashCore, flashCross1, flashCross2)
+    this.muzzleFlash.visible = false
+    this.robotArm.add(this.muzzleFlash)
+
+    this.camera.add(this.robotArm)
+  }
+
+  private setupFirstPersonShield() {
+    this.firstPersonShield = new THREE.Group()
+    this.firstPersonShield.position.set(0, 0, -0.42)
+
+    // Glowing cyan boundary ring
+    const fpRingGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 36, Math.PI * 1.6)
+    const fpRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending
+    })
+    const fpRing = new THREE.Mesh(fpRingGeo, fpRingMat)
+    fpRing.rotation.z = Math.PI * 0.7
+    this.firstPersonShield.add(fpRing)
+
+    // Translucent hexagonal kinetic lattice
+    const fpHexGeo = new THREE.IcosahedronGeometry(0.48, 1)
+    const fpHexMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.35
+    })
+    const fpHex = new THREE.Mesh(fpHexGeo, fpHexMat)
+    this.firstPersonShield.add(fpHex)
+
+    this.firstPersonShield.visible = false
+    this.camera.add(this.firstPersonShield)
   }
 
   private setupSky() {
@@ -353,17 +508,41 @@ export class SceneRenderer {
     gun.position.set(0.36, 1.05, -0.45)
     group.add(gun)
 
-    const shieldMat = new THREE.MeshLambertMaterial({
+    // High-fidelity Multi-layer Blueish Kinetic Shield
+    const shieldGroup = new THREE.Group()
+    shieldGroup.name = 'shield'
+    shieldGroup.position.y = 1.1
+    shieldGroup.visible = false
+
+    const innerShieldMat = new THREE.MeshBasicMaterial({
       color: 0x00f0ff,
       transparent: true,
-      opacity: 0.35,
-      wireframe: true
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
     })
-    const shield = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 12), shieldMat)
-    shield.name = 'shield'
-    shield.position.y = 1.1
-    shield.visible = false
-    group.add(shield)
+    const innerShield = new THREE.Mesh(new THREE.SphereGeometry(1.35, 24, 18), innerShieldMat)
+    shieldGroup.add(innerShield)
+
+    const outerShieldMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.75
+    })
+    const outerShield = new THREE.Mesh(new THREE.IcosahedronGeometry(1.42, 2), outerShieldMat)
+    shieldGroup.add(outerShield)
+
+    const ringShieldMat = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.85
+    })
+    const ringShield = new THREE.Mesh(new THREE.TorusGeometry(1.38, 0.03, 8, 32), ringShieldMat)
+    ringShield.rotation.x = Math.PI / 2
+    shieldGroup.add(ringShield)
+
+    group.add(shieldGroup)
 
     const superMat = new THREE.MeshBasicMaterial({
       color: 0xffaa00,
@@ -381,7 +560,96 @@ export class SceneRenderer {
     return group
   }
 
-  render(dt: number) {
+  triggerShoot(superActive: boolean = false) {
+    this.armRecoil = 0.08
+    this.armRecoilRot = 0.12
+    if (this.muzzleFlash) {
+      this.muzzleFlash.visible = true
+      this.muzzleFlashTime = 0.06
+    }
+    const color = superActive ? 0xffaa00 : 0x00f0ff
+    this.armConduitMat.color.setHex(color)
+    this.armCoreMat.color.setHex(color)
+  }
+
+  setFirstPersonShield(active: boolean) {
+    if (this.firstPersonShield) {
+      this.firstPersonShield.visible = active
+    }
+  }
+
+  spawnProjectile(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    superActive: boolean = false,
+    maxDist: number = 180
+  ) {
+    const group = new THREE.Group()
+    group.position.set(ox, oy, oz)
+
+    const color = superActive ? 0xffaa00 : 0x00f0ff
+
+    // Inner bright beam core
+    const coreGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.7, 8)
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat)
+    coreMesh.rotation.x = Math.PI / 2
+    group.add(coreMesh)
+
+    // Outer glowing energy sheath
+    const auraGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.85, 8)
+    const auraMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    })
+    const auraMesh = new THREE.Mesh(auraGeo, auraMat)
+    auraMesh.rotation.x = Math.PI / 2
+    group.add(auraMesh)
+
+    const dir = new THREE.Vector3(dx, dy, dz).normalize()
+    const target = new THREE.Vector3().addVectors(group.position, dir)
+    group.lookAt(target)
+
+    this.scene.add(group)
+
+    const speed = 160
+    this.projectiles.push({
+      mesh: group,
+      vel: dir.clone().multiplyScalar(speed),
+      dist: 0,
+      maxDist
+    })
+  }
+
+  spawnImpactSparks(pos: THREE.Vector3, color: number = 0x00f0ff) {
+    const count = 6
+    const sparkGeo = new THREE.SphereGeometry(0.035, 4, 4)
+    const sparkMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    })
+    for (let i = 0; i < count; i++) {
+      const mesh = new THREE.Mesh(sparkGeo, sparkMat)
+      mesh.position.copy(pos)
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6
+      )
+      this.scene.add(mesh)
+      this.sparks.push({ mesh, vel, life: 0.12 })
+    }
+  }
+
+  render(dt: number, isMoving = false, superActive = false, shieldActive = false) {
     for (const c of this.clouds) {
       c.position.x += (c.userData as any).driftX * dt * 4
       c.position.z += (c.userData as any).driftZ * dt * 4
@@ -391,11 +659,81 @@ export class SceneRenderer {
       if (c.position.z < -450) c.position.z = 450
     }
 
+    // Robot Hand recoil recovery & walking bobbing
+    this.armRecoil = THREE.MathUtils.lerp(this.armRecoil, 0, dt * 18)
+    this.armRecoilRot = THREE.MathUtils.lerp(this.armRecoilRot, 0, dt * 18)
+    if (isMoving) {
+      this.bobTimer += dt * 9
+    }
+    const bobX = Math.cos(this.bobTimer) * 0.005
+    const bobY = Math.sin(this.bobTimer * 2) * 0.004
+    this.robotArm.position.set(0.28 + bobX, -0.22 + bobY, -0.42 + this.armRecoil)
+    this.robotArm.rotation.set(0.05 - this.armRecoilRot, -0.06, -0.04 + bobX * 2)
+
+    // Muzzle flash duration
+    if (this.muzzleFlashTime > 0) {
+      this.muzzleFlashTime -= dt
+      if (this.muzzleFlashTime <= 0 && this.muzzleFlash) {
+        this.muzzleFlash.visible = false
+      }
+    }
+
+    // Update conduits color
+    const themeColor = superActive ? 0xffaa00 : 0x00f0ff
+    this.armConduitMat.color.setHex(themeColor)
+    this.armCoreMat.color.setHex(themeColor)
+
+    // First person shield
+    this.setFirstPersonShield(shieldActive)
+    if (this.firstPersonShield.visible) {
+      this.firstPersonShield.rotation.z += dt * 0.8
+    }
+
+    // Update active projectiles
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i]
+      const step = p.vel.clone().multiplyScalar(dt)
+      p.mesh.position.add(step)
+      p.dist += step.length()
+      if (p.dist >= p.maxDist) {
+        this.spawnImpactSparks(p.mesh.position, superActive ? 0xffaa00 : 0x00f0ff)
+        this.scene.remove(p.mesh)
+        this.projectiles.splice(i, 1)
+      }
+    }
+
+    // Update sparks
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const s = this.sparks[i]
+      s.mesh.position.addScaledVector(s.vel, dt)
+      s.life -= dt
+      if (s.life <= 0) {
+        this.scene.remove(s.mesh)
+        this.sparks.splice(i, 1)
+      }
+    }
+
+    // Animate 3rd person shields
+    for (const grp of this.playerMeshes.values()) {
+      const sh = grp.getObjectByName('shield')
+      if (sh && sh.visible) {
+        sh.rotation.y += dt * 1.5
+      }
+    }
+
     this.renderer.render(this.scene, this.camera)
   }
 
   destroy() {
     window.removeEventListener('resize', this.onResize)
+    for (const p of this.projectiles) {
+      this.scene.remove(p.mesh)
+    }
+    this.projectiles = []
+    for (const s of this.sparks) {
+      this.scene.remove(s.mesh)
+    }
+    this.sparks = []
     this.renderer.dispose()
   }
 }

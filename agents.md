@@ -74,6 +74,13 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
 - `DMG_SINGLE`: 20 base damage (scaled by distance falloff, min 25% at 120 units)
 - `SUPER_MULT`: 3× damage multiplier AND 2× movement speed multiplier (10s duration, -50 Hull cost). While Super is active, Q (Atma Core ability) and R (Nanite Barrier shield) are disabled.
 - `HUD_INDICATORS`: Q, E, R, C buttons feature animated perimeter SVG and linear border lines indicating real-time seconds remaining or charge progress. When Super is active, Q and R display DISABLED (SUPER).
+- `LIVE_TELEMETRY`: Header telemetry cluster displays real-time smooth RTT Ping (ms), connected pilot count (including bot breakdown), rolling FPS counter, active network protocol (LAN P2P / NOSTR P2P / SOLO OFFLINE), and 20 Hz simulation rate.
+- `VIEWMODEL_ROBOT_HAND`: First-person articulated cybernetic combat hand and forearm attached to camera space with glowing nanite conduits, palm blaster reactor core, procedural weapon sway, dynamic recoil, and muzzle flash. Conduits adaptively glow golden-amber during Super and cyan in standard mode.
+- `ENERGY_PROJECTILES`: Firing shoots high-velocity visible plasma energy packets with glowing dual-mesh core and outer sheath, illuminating trajectories across the arena and bursting into impact sparks upon obstacle or player contact. Bot firing also renders visible projectiles.
+- `KINETIC_DEFLECTOR_SHIELD`: Activating R displays an unmistakable blueish kinetic forcefield:
+  - First-person HUD: Hexagonal energy barrier grid, glowing cyan corner brackets, pulsing immunity timer banner, and deep vignette glow.
+  - 3D Arena: Multi-layer forcefield bubble with rotating outer geodesic wireframe, inner emissive glow sphere, and equatorial energy ring.
+- `TRIAL_COMPLETION_SCREEN`: When the 10-minute trial clock expires (or match ends), authoritative standings calculate the Apex Operative champion, final rank, frag counts, and display the full final leaderboard modal with "PLAY AGAIN / NEW TRIAL" and "RETURN TO LOBBY" actions.
 - `RECONNECT_GRACE_MS`: 15000ms
 
 ### 3.4 750×750 Procedural Arena (`map_pure.ts`)
@@ -114,6 +121,7 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
    - Client sends inputs (movement, aim yaw/pitch, actions) at 20–60Hz.
    - Host runs authoritative simulation (sweep AABB collisions, raycasts, cooldowns, abilities, match timer).
    - Host broadcasts snapshot/delta updates at 20Hz (`TICK_MS = 50`).
+   - Periodic heartbeat ping/pong packets track live peer RTT latency.
 4. **Local LAN Mode (Simplified Host Address)**:
    - Host clicks **"HOST LAN MATCH"**; local IP is detected (e.g. `192.168.1.50:30300`).
    - Clients click **"JOIN LAN (PASTE ADDRESS)"** (pre-filled with `window.location.host` or custom IP).
@@ -124,9 +132,9 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
 ## 5. Technology Stack & Project Structure
 
 - **Language**: TypeScript (ES modules).
-- **3D Engine**: Three.js (`InstancedMesh`, `Sky`, `UnrealBloomPass`, `EffectComposer`).
-- **Networking**: WebRTC (`RTCDataChannel`), `nostr-tools`.
-- **Audio**: Web Audio API (or Howler.js).
+- **3D Engine**: Three.js (`InstancedMesh`, `Sky`, `PerspectiveCamera`, custom procedural viewmodels, particle/spark physics).
+- **Networking**: WebRTC (`RTCDataChannel`), `nostr-tools`, embedded LAN WebSocket broker.
+- **Audio**: Web Audio API synthesized procedural combat audio.
 - **Bundler / Server**: Vite for development and client build; lightweight static server in production container.
 - **Container**: Podman / Docker (Node 22-Alpine image, port 30300).
 

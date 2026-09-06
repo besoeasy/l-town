@@ -4,7 +4,7 @@ import type { CoreId } from './game/config'
 import { getDailySeed } from './game/prng'
 import { SceneRenderer } from './game/scene'
 import { GameEngine } from './game/engine'
-import type { PlayerState, KillMsg, HitConfirmMsg, NostrRoom } from './net/types'
+import type { PlayerState, KillMsg, HitConfirmMsg, NostrRoom, TelemetryData, MatchResults } from './net/types'
 import { publishRoom, subscribeRooms, sendSignalingMessage, subscribeSignaling, myPubkey } from './net/nostr'
 import { P2PHost, P2PClient } from './net/webrtc'
 import { encodeSignal, decodeSignal } from './net/qr'
@@ -12,6 +12,7 @@ import { encodeSignal, decodeSignal } from './net/qr'
 import Lobby from './components/Lobby.vue'
 import Hud from './components/Hud.vue'
 import Scoreboard from './components/Scoreboard.vue'
+import GameOverModal from './components/GameOverModal.vue'
 import QrModal from './components/QrModal.vue'
 import LanModal from './components/LanModal.vue'
 import { LanSignaler } from './net/lan'
@@ -30,6 +31,18 @@ const killFeed = ref<KillMsg[]>([])
 const hitFlash = ref(false)
 const hitConfirm = ref({ show: false, amount: 0, killed: false })
 const showScoreboard = ref(false)
+const isGameOver = ref(false)
+const matchResults = ref<MatchResults | null>(null)
+const telemetry = ref<TelemetryData>({
+  ping: 0,
+  fps: 60,
+  connectedPlayers: 1,
+  humanPlayers: 1,
+  botPlayers: 0,
+  mode: 'solo',
+  tickRate: 20
+})
+let currentMatchMode: 'solo' | 'host' | 'client' = 'solo'
 
 // NOSTR Rooms State
 const nostrRooms = ref<NostrRoom[]>([])
@@ -94,7 +107,10 @@ const handleGlobalKeyUp = (e: KeyboardEvent) => {
 
 const initEngine = (seed: number, mode: 'solo' | 'host' | 'client') => {
   if (!canvasRef.value) return
+  currentMatchMode = mode
   localStorage.setItem('ltown_callsign', callsign.value)
+  isGameOver.value = false
+  matchResults.value = null
 
   sceneRenderer = new SceneRenderer(canvasRef.value)
   engine = new GameEngine(
@@ -105,10 +121,11 @@ const initEngine = (seed: number, mode: 'solo' | 'host' | 'client') => {
     selectedCore.value,
     mode,
     {
-      onHudUpdate: (p, time, hvt) => {
+      onHudUpdate: (p, time, hvt, telem) => {
         localPlayer.value = { ...p }
         matchTime.value = time
         hvtId.value = hvt
+        if (telem) telemetry.value = telem
       },
       onHit: () => {
         hitFlash.value = true
@@ -124,12 +141,36 @@ const initEngine = (seed: number, mode: 'solo' | 'host' | 'client') => {
       },
       onLeaderboardUpdate: (lb) => {
         leaderboard.value = lb
+      },
+      onMatchEnd: (results) => {
+        matchResults.value = results
+        isGameOver.value = true
       }
     }
   )
 
   inLobby.value = false
   engine.start()
+}
+
+const handlePlayAgain = () => {
+  isGameOver.value = false
+  matchResults.value = null
+  engine?.destroy()
+  if (currentMatchMode === 'solo') {
+    startSolo()
+  } else if (currentMatchMode === 'host') {
+    startHostMatch()
+  } else {
+    inLobby.value = true
+  }
+}
+
+const handleReturnToLobby = () => {
+  isGameOver.value = false
+  matchResults.value = null
+  engine?.destroy()
+  inLobby.value = true
 }
 
 // 1. Launch Solo Mode with Bots
@@ -370,6 +411,7 @@ const handleSignalSubmit = (val: string) => {
       :kill-feed="killFeed"
       :hit-flash="hitFlash"
       :hit-confirm="hitConfirm"
+      :telemetry="telemetry"
     />
 
     <!-- Tab / F Scoreboard -->
@@ -378,6 +420,15 @@ const handleSignalSubmit = (val: string) => {
       :leaderboard="leaderboard"
       :hvt-id="hvtId"
       :local-player-id="localPlayer.id || 1"
+    />
+
+    <!-- Game Over / Match End Screen -->
+    <GameOverModal
+      :show="isGameOver"
+      :results="matchResults"
+      :local-player-id="localPlayer.id || 1"
+      @play-again="handlePlayAgain"
+      @return-to-lobby="handleReturnToLobby"
     />
 
     <!-- Simplified LAN Modal (Host Address) -->
