@@ -11,7 +11,12 @@
   <p>3049 Remote Age — same chassis, soul decides.</p>
   <input id="nameInput" placeholder="callsign" maxlength="20">
   <select id="coreSelect"></select>
-  <button id="joinBtn">ENTER ARENA</button>
+  <button id="joinBtn">ENTER ARENA (Solo/Pure)</button>
+  <button id="createBtn">CREATE Global (NOSTR)</button>
+  <button id="qrBtn">SHOW QR (LAN offline)</button>
+  <div id="qrBox" style="display:none;word-break:break-all;background:#111;padding:8px;border-radius:8px;font-size:10px"></div>
+  <div id="roomList" style="max-height:160px;overflow:auto;border:1px solid #222;border-radius:8px;padding:6px;font-size:12px"></div>
+  <div style="font-size:11px;opacity:.6">NOSTR discovery only — game stays direct P2P (LAN ~1ms, clearnet direct)</div>
 </div>
 <canvas id="canvas"></canvas>
 <div id="hud"><span id="hp"></span> <span id="score"></span> <span id="timer"></span></div>

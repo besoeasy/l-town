@@ -8,8 +8,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "^0.179.1",
-    "howler": "^2.2.4"
+    "howler": "^2.2.4",
+    "nostr-tools": "^2.7.2",
+    "three": "^0.179.1"
   },
   "devDependencies": {
     "@types/howler": "^2.2.12",

@@ -1,5 +1,6 @@
 // @ts-nocheck
-// Atma Core crypto — ECDSA P-256 soul (lore.md:30)
+// Atma Core crypto — ECDSA P-256 soul (lore.md:30) + NOSTR secp256k1 reuse
+// Game state hash chain uses P-256 WebCrypto; NOSTR lobby reuses same Atma as secp256k1 via nostr-tools localStorage 'atma-sk' — soul = pubkey
 // Pure browser — WebCrypto, IndexedDB persisted
 const DB='atma', STORE='keys'
 function db():Promise<IDBDatabase>{ return new Promise((res,rej)=>{ const r=indexedDB.open(DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error) }) }
