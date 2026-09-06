@@ -15,14 +15,30 @@ function hexToBytes(hex: string): Uint8Array {
   return out
 }
 
-export const NOSTR_RELAYS = [
-  typeof window !== 'undefined'
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/nostr`
-    : 'ws://127.0.0.1:30300/nostr',
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-  'wss://relay.primal.net'
-]
+function getInitialRelays(): string[] {
+  const relays: string[] = []
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    const isLocal = host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.') ||
+      window.location.port === '30300'
+    if (isLocal) {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      relays.push(`${proto}//${window.location.host}/nostr`)
+    }
+  }
+  relays.push(
+    'wss://relay.damus.io',
+    'wss://relay.primal.net',
+    'wss://nostr.mom',
+    'wss://nos.lol'
+  )
+  return relays
+}
+
+export const NOSTR_RELAYS = getInitialRelays()
 
 const KIND_ROOM = 30303
 const pool = new SimplePool()
