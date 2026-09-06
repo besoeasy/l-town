@@ -1,6 +1,6 @@
 {
   "name": "l-town",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "L-Town — free open-source multiplayer browser FPS. No download, 300-player arena, procedural map, self-host via Docker or npx. Three.js + Node.js WebSockets.",
   "type": "module",
   "main": "server.js",
