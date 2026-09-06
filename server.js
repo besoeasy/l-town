@@ -453,20 +453,31 @@ setInterval(() => {
     .slice(0, 3)
     .map(p => ({ id: p.id, name: p.name, score: p.score }));
 
-  const stateMsg = JSON.stringify({
-    type:              'gameState',
-    matchTime:         Math.max(0, CFG.MATCH_DURATION - (now - matchStart) / 1000),
-    playerCount:       players.size,
-    aliveCount,
-    maxPlayers:        CFG.MAX_PLAYERS,
-    highValueTargetId: hvtId,
-    leaderboard,
-    players:           allPlayerData,
-  });
-
+  const matchTime = Math.max(0, CFG.MATCH_DURATION - (now - matchStart) / 1000);
+  // Interest cull: only send nearby players (~120u) + self + HVT — ~20x bandwidth saving at 300p
+  const VIS_RADIUS = 120;
+  const VIS_RADIUS_SQ = VIS_RADIUS * VIS_RADIUS;
   for (const p of players.values()) {
     if (!p.ws || p.ws.readyState !== 1) continue;
-    p.ws.send(stateMsg);
+    const visible = [];
+    for (const op of allPlayerData) {
+      if (op.id === p.id) { visible.push(op); continue; }
+      if (op.invisible) continue; // cloaked — not sent to others
+      if (op.id === hvtId) { visible.push(op); continue; }
+      if (!op.alive) continue;
+      const dx = op.x - p.x, dz = op.z - p.z;
+      if (dx * dx + dz * dz <= VIS_RADIUS_SQ) visible.push(op);
+    }
+    p.ws.send(JSON.stringify({
+      type:              'gameState',
+      matchTime,
+      playerCount:       players.size,
+      aliveCount,
+      maxPlayers:        CFG.MAX_PLAYERS,
+      highValueTargetId: hvtId,
+      leaderboard,
+      players:           visible,
+    }));
   }
 }, CFG.TICK_MS);
 
