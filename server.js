@@ -671,6 +671,11 @@ wss.on('connection', ws => {
       if (len > 0) {
         mx = (mx / len) * speed * dt;
         mz = (mz / len) * speed * dt;
+        // Anti-speedhack: clamp per-tick displacement to max legitimate speed
+        const maxSpeed = CFG.RUN_SPEED * 1.5 * 1.2 * 2 * 1.25; // 67.5 u/s — covers super+air+denja+berserker
+        const maxDist = maxSpeed * dt + 1e-6;
+        const dist = Math.hypot(mx, mz);
+        if (dist > maxDist) { const s = maxDist / dist; mx *= s; mz *= s; }
         player.lastMoveTime = Date.now();
         player.crouching    = false; // moving cancels auto-crouch
       }
@@ -691,11 +696,8 @@ wss.on('connection', ws => {
     }
 
     // ── RELOAD ────────────────────────────────────────────────────────────
-    if (msg.type === 'reload') {
-      if (player.alive && !player.isReloading && player.ammo < CFG.MAG_SIZE)
-        triggerReload(player);
-      return;
-    }
+    // Energy weapon has no reload — handler kept for compat, no-op (was crash: triggerReload undefined)
+    if (msg.type === 'reload') return;
 
     // ── CROUCH ────────────────────────────────────────────────────────────
     if (msg.type === 'crouch') {
