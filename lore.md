@@ -39,16 +39,16 @@ Swap the core, change the soul. The body stays the same.
 Eleven organisations submitted cores for this season:
 
 - **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy.
-- **Chumantr** — Pale Choir stealth cult. Ghost warfare. Vanishes for 10 seconds.
-- **Denja** — Kuro Racer Syndicate. Overdrive engines. 2× speed burst for 8 seconds.
+- **Chumantr** — Pale Choir stealth cult. Survey sneak for hostile ground. Vanishes for 10 seconds, can't shoot.
+- **Denja** — Kuro Racer Syndicate. Overdrive engines, Atma governor caps burst at 8s. 2× speed.
 - **Mednix** — Helix Med-Corps. Field repair. Restores 1–50 hull instantly.
 - **Tank** — Bastion Siege Foundry. Bulwark doctrine. Takes half damage for 8 seconds.
 - **Anchor** — Orbital Guard. Aegis shields. Pre-charged cell fires one 3s immunity.
 - **Surge** — Deep Vein Mining Guild. Siphon tech. Drains 30 hull from the nearest enemy.
 - **Jinx** — Black Lotus AI Lab. Retaliation code. Dying swarm fires a dead-man overload into its killer (80 hull).
 - **Gambler** — Vesper Casino-State. Desperate odds. Heal or teleport is worth the death chance on hostile worlds.
-- **Parasite** — Green Hive. Leech ecology. Drains nearby enemies for 6 seconds.
-- **Berserker** — Red Pit Fighters. Rage stimulant. +50% damage and +25% speed for 8 seconds.
+- **Parasite** — Green Hive. Leech ecology with kin filter, drinks only strangers. Drains nearby enemies for 6 seconds.
+- **Berserker** — Red Pit Fighters. Chemical overclock for nanites, pilot stays sober. +50% damage and +25% speed for 8 seconds.
 
 ## L-Town Protocol
 
