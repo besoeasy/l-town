@@ -8,6 +8,8 @@
     "dev": "tsc -p tsconfig.json --watch"
   },
   "dependencies": {
+    "@types/three": "^0.179.0",
+    "msgpackr": "^1.10.1",
     "three": "^0.179.1"
   },
   "devDependencies": {

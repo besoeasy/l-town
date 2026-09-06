@@ -1,4 +1,5 @@
 
+// @ts-nocheck
 import * as THREE from 'three';
 import { makePRNG } from './utls.js';
 

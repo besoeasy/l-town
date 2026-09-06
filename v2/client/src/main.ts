@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { CFG, CORE_IDS } from '@l-town/shared/src/cfg.js'
-import { generateMap } from '@l-town/shared/src/map.js'
+import { generateMap } from '@l-town/shared/src/map_pure.js'
 import { initScene } from './scene.js'
 
 const coreSel=document.getElementById('coreSelect') as HTMLSelectElement

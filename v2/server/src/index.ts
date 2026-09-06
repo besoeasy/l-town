@@ -9,7 +9,8 @@ import { CFG, CORE_IDS } from '@l-town/shared/src/cfg.js'
 import { makePRNG } from '@l-town/shared/src/utls.js'
 import { createBoxGrid, resolveCollision } from './physics.js'
 // reuse shared map gen (v1 copy)
-import { generateMap } from '@l-town/shared/src/map.js'
+import { generateMap } from '@l-town/shared/src/map_pure.js'
+// pure map gen — no three.js (P0)
 
 const __filename=fileURLToPath(import.meta.url), __dirname=path.dirname(__filename)
 const _now=new Date()
@@ -211,7 +212,7 @@ wss.on('connection',(ws:any,req:any)=>{
   })
   ws.on('error',()=>{})
 })
-const PORT=process.env.PORT??30300
+const PORT=Number(process.env.PORT ?? 30300)
 server.listen(PORT,'0.0.0.0',()=>console.log(`L-Town v2 running → http://0.0.0.0:${PORT} (seed ${MAP_SEED})`))
 // graceful
 process.on('SIGTERM',()=>{ if(matchTimer) clearTimeout(matchTimer); wss.close(); server.close(()=>process.exit(0)) })

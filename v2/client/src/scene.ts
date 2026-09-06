@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { generateMap, buildMap as buildMapV1 } from '@l-town/shared/src/map.js'
+import { buildMap as buildMapV1 } from '@l-town/shared/src/map.js'
 // v2: InstancedMesh from scratch (no per-box Mesh)
 export async function initScene(canvas: HTMLCanvasElement, map:any){
   const scene=new THREE.Scene()

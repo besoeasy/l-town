@@ -1,5 +1,5 @@
-// Physics stub — server authoritative sweep AABB (rapier-ready)
-// For now reuses v1 boxGrid + sweep, no client trust
+// Physics — server authoritative sweep AABB, rapier-ready interface
+// v2 scratch: grid + sweep, rapier would replace resolveCollision with RAPIER.World step
 import { CFG } from '@l-town/shared/src/cfg.js'
 export function createBoxGrid(MAP:any, BOX_CELL=20) {
   const grid = new Map()
