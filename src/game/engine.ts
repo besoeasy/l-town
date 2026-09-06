@@ -447,7 +447,7 @@ export class GameEngine {
       }
 
       if (now - (p.id === 1 ? this.lastHitTime : 0) > CFG.REGEN_DELAY) {
-        const rate = (p.crouching ? 3 : 1) * 20 * dt
+        const rate = (p.crouching ? 3 : 1) * CFG.REGEN_RATE * dt
         p.health = Math.min(CFG.MAX_HEALTH, p.health + rate)
       }
 

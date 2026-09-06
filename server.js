@@ -50,3 +50,10 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`L-Town PWA running at http://0.0.0.0:${PORT}`);
 });
+
+process.on('SIGTERM', () => {
+  server.close(() => process.exit(0));
+});
+process.on('SIGINT', () => {
+  server.close(() => process.exit(0));
+});

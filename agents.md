@@ -65,6 +65,8 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
 - `MATCH_DURATION`: 600s
 - `MAX_PLAYERS`: 16 (P2P WebRTC room limit)
 - `MAX_HEALTH`: 500 Hull
+- `REGEN_DELAY`: 2000ms
+- `REGEN_RATE`: 2 nanites/s base (6 nanites/s while crouching)
 - `PLAYER_SPEED`: 9 units/s (Run: 15 units/s, Crouch: 4 units/s)
 - `PLAYER_RADIUS`: 0.45, `PLAYER_HEIGHT`: 2.3, `EYE_HEIGHT`: 1.95, `CROUCH_EYE_HEIGHT`: 0.85
 - `JUMP_SPEED`: 18 units/s, `GRAVITY`: 32 units/s²
