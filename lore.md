@@ -6,7 +6,7 @@ In 3049, humans never touch the ground. Robots go down. Operators stay in orbit.
 
 ## Year 3049 — The Remote Age
 
-After the Helios Storms of 2910, planetary surfaces became lethal to unshielded humans. Landings were banned by the Orbit Treaty.
+After the Helios Storms of 2910 — solar flares that stripped surface shielding — planetary surfaces became lethal to unshielded humans. Landings were banned by the Orbit Treaty.
 
 Exploration, mining, and war are now done by remote chassis. Pilots connect from stations above.
 
@@ -16,13 +16,13 @@ Every unit in L-Town is the same RX-11 chassis. Same hull. Same speed. Same wiri
 
 No variants. No upgrades. Fixed by treaty so only cores compete.
 
-A destroyed unit is rebuilt. A disconnected operator wakes up.
+A destroyed unit is reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
 
 ## The Atma Core
 
 Each robot is powered by an Atma Core. Atma means soul.
 
-The core provides energy and one combat ability. Each core holds a copied mind-pattern from its maker — a transit engineer, a cult ghost, a pit-fighter.
+The core provides energy and one combat ability. Each core holds a copied mind-pattern from its maker — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
 
 Swap the core, change the soul. The body stays the same.
 
@@ -46,7 +46,7 @@ Eleven organisations submitted cores for this season:
 
 L-Town is a decommissioned transit hub kept as a live-fire lab and broadcast arena. Its roads, garage, and office tower remain from the Meridian freight days.
 
-Each trial runs 10 minutes. Highest score wins. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
+Each trial runs 10 minutes. Highest score wins. Automated drones track every unit for the live leaderboard. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
 The arena regenerates each dawn. One map per day — everyone fights the same town.
 
