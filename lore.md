@@ -16,13 +16,13 @@ Every unit in L-Town is the same RX-11 chassis: a pure nanobot swarm held in hum
 
 No variants. No upgrades. Fixed by treaty so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch.
 
-A destroyed swarm is reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
+A destroyed swarm is reclaimed on the spot and reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
 
 ## Hull — Nanite Mass
 
 Hull is a census. The number is how many nanites remain in the swarm.
 
-Damage destroys nanites. Fire spends them — every bullet is mass leaving the body. Super, shield, and jump burns are mass spent for power.
+Damage destroys nanites. Fire spends them — every bullet is mass leaving the body. Shield hardens mass into a dense ablative wall. Super overclocks the swarm. Jump burns are mass spent for lift.
 
 The chassis fabricates replacements from ambient matter. Hold still and intakes pull from the air to rebuild. Crouch to open the intakes wide and rebuild faster. Move, and fabrication slows. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms.
 
@@ -38,7 +38,7 @@ Swap the core, change the soul. The body stays the same.
 
 Eleven organisations submitted cores for this season:
 
-- **Telepotu** — Meridian Transit Cartel. Warp logistics. Swaps positions with a random enemy.
+- **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy.
 - **Chumantr** — Pale Choir stealth cult. Ghost warfare. Vanishes for 10 seconds.
 - **Denja** — Kuro Racer Syndicate. Overdrive engines. 2× speed burst for 8 seconds.
 - **Mednix** — Helix Med-Corps. Field repair. Restores 1–50 hull instantly.
@@ -56,7 +56,7 @@ L-Town is a decommissioned transit hub kept as a battleground for testing new te
 
 Makers prove their cores here. Winning cores earn glory and off-world contracts — mining runs, hostile encounters, and survey work on planets humans cannot enter. Combat in the arena is the job interview.
 
-Each trial runs 10 minutes. Highest score wins. Automated drones track every unit for the live leaderboard. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
+Each trial runs 10 minutes. Highest score wins. Cheap expendable drone swarms track every unit for the live leaderboard — losses expected. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
 The arena regenerates each dawn. One map per day — everyone fights the same town. Printers recycle the wreckage overnight and print a fresh layout by morning.
 
