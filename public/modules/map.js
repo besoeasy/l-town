@@ -498,17 +498,34 @@ export function buildMap(scene, map) {
     return bi === 'terra' ? M.cover_terra : bi === 'barren' ? M.cover_barren : M.cover_neutral;
   }
 
-  // ── Structural boxes ──────────────────────────────────────────────────────
-  for (const b of map.boxes) {
-    if (b.type === 'path') continue;
-    const mat = getMat(b);
-    if (!mat) continue;
-        const mesh = new THREE.Mesh(SHARED_GEOMETRY.box, mat);
-    mesh.scale.set(b.w, b.h, b.d);
-    mesh.position.set(b.x, b.y, b.z);
-    mesh.castShadow    = b.type !== 'wall';
-    mesh.receiveShadow = true;
-    scene.add(mesh);
+  // ── Structural boxes (InstancedMesh — ~600 → ~8 draw calls) ────────────
+  {
+    const groups = new Map(); // key -> { mat, castShadow, boxes:[] }
+    for (const b of map.boxes) {
+      if (b.type === 'path') continue;
+      const mat = getMat(b);
+      if (!mat) continue;
+      const cast = b.type !== 'wall';
+      const key = (mat.uuid ?? mat) + (cast ? '_c' : '_n');
+      let g = groups.get(key);
+      if (!g) { g = { mat, castShadow: cast, boxes: [] }; groups.set(key, g); }
+      g.boxes.push(b);
+    }
+    const dummy = new THREE.Object3D();
+    for (const g of groups.values()) {
+      const inst = new THREE.InstancedMesh(SHARED_GEOMETRY.box, g.mat, g.boxes.length);
+      inst.castShadow = g.castShadow;
+      inst.receiveShadow = true;
+      let i = 0;
+      for (const b of g.boxes) {
+        dummy.position.set(b.x, b.y, b.z);
+        dummy.scale.set(b.w, b.h, b.d);
+        dummy.updateMatrix();
+        inst.setMatrixAt(i++, dummy.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      scene.add(inst);
+    }
   }
 
   // ── Trees ─────────────────────────────────────────────────────────────────
