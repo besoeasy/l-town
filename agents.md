@@ -113,6 +113,10 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
    - Client sends inputs (movement, aim yaw/pitch, actions) at 20–60Hz.
    - Host runs authoritative simulation (sweep AABB collisions, raycasts, cooldowns, abilities, match timer).
    - Host broadcasts snapshot/delta updates at 20Hz (`TICK_MS = 50`).
+4. **Local LAN Mode (Simplified Host Address)**:
+   - Host clicks **"HOST LAN MATCH"**; local IP is detected (e.g. `192.168.1.50:30300`).
+   - Clients click **"JOIN LAN (PASTE ADDRESS)"** (pre-filled with `window.location.host` or custom IP).
+   - Local WebSocket broker transparently negotiates the WebRTC offer/answer in <50ms, connecting peers directly without copying manual tokens. An air-gapped QR mode remains available as fallback.
 
 ---
 

@@ -27,7 +27,7 @@ export class SceneRenderer {
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.15
+    this.renderer.toneMappingExposure = 1.25
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
 
     this.setupSky()
@@ -51,28 +51,23 @@ export class SceneRenderer {
     this.scene.add(sky)
 
     const skyU = sky.material.uniforms as any
-    skyU['turbidity'].value = 8
-    skyU['rayleigh'].value = 2.5
+    skyU['turbidity'].value = 2.5
+    skyU['rayleigh'].value = 1.5
     skyU['mieCoefficient'].value = 0.005
-    skyU['mieDirectionalG'].value = 0.82
+    skyU['mieDirectionalG'].value = 0.8
 
-    // Afternoon sun direction (golden hour angle)
-    const sunDir = new THREE.Vector3()
-    sunDir.setFromSphericalCoords(
-      1,
-      THREE.MathUtils.degToRad(85),
-      THREE.MathUtils.degToRad(220)
-    )
-    skyU['sunPosition'].value.copy(sunDir)
+    // Sun direction aligned with primary sun directional light (high clear daylight angle)
+    const sunPos = new THREE.Vector3(120, 220, 80).normalize()
+    skyU['sunPosition'].value.copy(sunPos)
   }
 
   private setupLighting() {
-    // Sky / ground hemisphere light (soft sky blue above, warm earth green below)
-    const hemi = new THREE.HemisphereLight(0xb8d4f0, 0x4a5828, 0.8)
+    // Sky / ground hemisphere light (soft daylight sky blue above, warm bounce ground below)
+    const hemi = new THREE.HemisphereLight(0xe8f4ff, 0x889966, 1.1)
     this.scene.add(hemi)
 
     // Direct warm sun with crisp soft shadows
-    const sun = new THREE.DirectionalLight(0xfff4e0, 2.2)
+    const sun = new THREE.DirectionalLight(0xfffaed, 2.4)
     sun.position.set(120, 220, 80)
     sun.castShadow = true
     sun.shadow.mapSize.set(2048, 2048)
@@ -82,16 +77,17 @@ export class SceneRenderer {
     sun.shadow.camera.right = 600
     sun.shadow.camera.top = 600
     sun.shadow.camera.bottom = -600
-    sun.shadow.bias = -0.0003
+    sun.shadow.bias = -0.00005
+    sun.shadow.normalBias = 0.03
     this.scene.add(sun)
 
-    // Directional fill light from opposing angle (ensures building shadows remain visible)
-    const fill = new THREE.DirectionalLight(0x8090c0, 0.6)
-    fill.position.set(-80, 60, -60)
+    // Directional fill light from opposing angle (ensures building shadows remain clearly visible)
+    const fill = new THREE.DirectionalLight(0xa0c0e8, 0.8)
+    fill.position.set(-100, 80, -80)
     this.scene.add(fill)
 
-    // Ambient global illumination
-    const ambient = new THREE.AmbientLight(0xffffff, 0.45)
+    // Ambient global illumination (ensures building interiors and covered areas are bright)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.8)
     this.scene.add(ambient)
   }
 
@@ -159,15 +155,15 @@ export class SceneRenderer {
                  Math.sin(vx * 0.04 + vy * 0.04) * 0.14) * 0.042
       const t = Math.max(0, Math.min(1, (vx + 100) / 200))
       // Terra (+x): vibrant grass green
-      const tr = 0.22 + n, tg = 0.44 + n * 0.6, tb = 0.16 + n * 0.5
+      const tr = 0.28 + n, tg = 0.52 + n * 0.6, tb = 0.20 + n * 0.5
       // Barren (-x): warm sandstone
-      const br = 0.62 + n, bg = 0.52 + n * 0.4, bb = 0.30 + n * 0.3
+      const br = 0.70 + n, bg = 0.60 + n * 0.4, bb = 0.38 + n * 0.3
       gColors.push(tr * t + br * (1 - t), tg * t + bg * (1 - t), tb * t + bb * (1 - t))
     }
     gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gColors, 3))
     const groundMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.95,
+      roughness: 0.92,
       metalness: 0.0
     })
     const ground = new THREE.Mesh(gGeo, groundMat)
@@ -196,43 +192,45 @@ export class SceneRenderer {
 
     // 3. Clean architectural materials for map boxes
     const materials: Record<string, THREE.Material> = {
-      wall: new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.82, metalness: 0.08 }),
-      house_body: new THREE.MeshStandardMaterial({ color: 0xdce0dd, roughness: 0.78, metalness: 0.02 }), // Light bright concrete
+      wall: new THREE.MeshStandardMaterial({ color: 0x8290a0, roughness: 0.76, metalness: 0.05 }),
+      house_body: new THREE.MeshStandardMaterial({ color: 0xedf0f2, roughness: 0.75, metalness: 0.02 }), // Light bright concrete
       house_window: new THREE.MeshStandardMaterial({
-        color: 0x5a9ec8,
+        color: 0x6ab0d8,
         roughness: 0.10,
         metalness: 0.22,
-        emissive: 0x2468a0,
-        emissiveIntensity: 0.55
+        emissive: 0x3078b0,
+        emissiveIntensity: 0.6
       }),
-      house_door: new THREE.MeshStandardMaterial({ color: 0x161a24, roughness: 0.3, metalness: 0.2 }),
-      house_chimney: new THREE.MeshStandardMaterial({ color: 0x484c54, roughness: 0.8 }),
-      platform: new THREE.MeshStandardMaterial({ color: 0x888e94, roughness: 0.76, metalness: 0.06 }),
-      garden: new THREE.MeshStandardMaterial({ color: 0x3a8824, roughness: 0.88 }),
-      fountain_base: new THREE.MeshStandardMaterial({ color: 0xa0aeb6, roughness: 0.58, metalness: 0.08 }),
-      fountain_rim: new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.4, emissive: 0x006688, emissiveIntensity: 0.3 }),
-      fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x8898a2, roughness: 0.5 }),
-      bench: new THREE.MeshStandardMaterial({ color: 0x565e64, roughness: 0.68, metalness: 0.2 }),
-      lamp_post: new THREE.MeshStandardMaterial({ color: 0x1a2028, roughness: 0.42, metalness: 0.65 }),
-      lamp_head: new THREE.MeshStandardMaterial({ color: 0xffea70, emissive: 0xffee40, emissiveIntensity: 1.4 }),
-      bollard: new THREE.MeshStandardMaterial({ color: 0xd0c010, roughness: 0.62, metalness: 0.18 }),
-      path: new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.95 }),
+      house_door: new THREE.MeshStandardMaterial({ color: 0x242c38, roughness: 0.3, metalness: 0.2 }),
+      house_chimney: new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.8 }),
+      platform: new THREE.MeshStandardMaterial({ color: 0x9ca8b4, roughness: 0.72, metalness: 0.06 }),
+      garden: new THREE.MeshStandardMaterial({ color: 0x48a02c, roughness: 0.85 }),
+      fountain_base: new THREE.MeshStandardMaterial({ color: 0xb4c2cb, roughness: 0.55, metalness: 0.08 }),
+      fountain_rim: new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.4, emissive: 0x0088aa, emissiveIntensity: 0.4 }),
+      fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x98a8b2, roughness: 0.5 }),
+      bench: new THREE.MeshStandardMaterial({ color: 0x667078, roughness: 0.68, metalness: 0.2 }),
+      lamp_post: new THREE.MeshStandardMaterial({ color: 0x242c36, roughness: 0.42, metalness: 0.65 }),
+      lamp_head: new THREE.MeshStandardMaterial({ color: 0xffea70, emissive: 0xffee40, emissiveIntensity: 1.5 }),
+      bollard: new THREE.MeshStandardMaterial({ color: 0xd8c818, roughness: 0.6, metalness: 0.18 }),
+      path: new THREE.MeshStandardMaterial({ color: 0x424854, roughness: 0.92 }),
       road_marking: new THREE.MeshStandardMaterial({ color: 0xffea00, roughness: 0.8 }),
 
       // Biome-specific cover & buildings
-      cover_terra: new THREE.MeshStandardMaterial({ color: 0x5a8838, roughness: 0.85 }),
-      cover_barren: new THREE.MeshStandardMaterial({ color: 0xb08848, roughness: 0.88 }),
-      cover_neutral: new THREE.MeshStandardMaterial({ color: 0x7890a0, roughness: 0.74, metalness: 0.08 }),
+      cover_terra: new THREE.MeshStandardMaterial({ color: 0x6ca044, roughness: 0.82 }),
+      cover_barren: new THREE.MeshStandardMaterial({ color: 0xc49a58, roughness: 0.85 }),
+      cover_neutral: new THREE.MeshStandardMaterial({ color: 0x8aa2b4, roughness: 0.72, metalness: 0.08 }),
 
-      building_terra: new THREE.MeshStandardMaterial({ color: 0xd4dce0, roughness: 0.76, metalness: 0.03 }),
-      building_bar: new THREE.MeshStandardMaterial({ color: 0xd0c9a4, roughness: 0.8 }),
-      building_neutral: new THREE.MeshStandardMaterial({ color: 0x929ea8, roughness: 0.75 }),
+      building_terra: new THREE.MeshStandardMaterial({ color: 0xe0e8ec, roughness: 0.74, metalness: 0.03 }),
+      building_bar: new THREE.MeshStandardMaterial({ color: 0xdcd5b2, roughness: 0.78 }),
+      building_neutral: new THREE.MeshStandardMaterial({ color: 0xa4b0bc, roughness: 0.72 }),
 
-      pillar_terra: new THREE.MeshStandardMaterial({ color: 0x4a7830, roughness: 0.8 }),
-      pillar_barren: new THREE.MeshStandardMaterial({ color: 0x9a6838, roughness: 0.85 }),
-      pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x78888e, roughness: 0.68, metalness: 0.08 }),
+      rand_building: new THREE.MeshStandardMaterial({ color: 0xd0d8e0, roughness: 0.72, metalness: 0.04 }),
 
-      default: new THREE.MeshStandardMaterial({ color: 0x7a8694, roughness: 0.75 })
+      pillar_terra: new THREE.MeshStandardMaterial({ color: 0x5a8a3c, roughness: 0.78 }),
+      pillar_barren: new THREE.MeshStandardMaterial({ color: 0xaa7844, roughness: 0.82 }),
+      pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x889aa2, roughness: 0.68, metalness: 0.08 }),
+
+      default: new THREE.MeshStandardMaterial({ color: 0x909ea8, roughness: 0.72 })
     }
 
     const groups = new Map<string, Box[]>()

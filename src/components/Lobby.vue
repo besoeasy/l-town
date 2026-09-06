@@ -177,10 +177,10 @@ const activeTab = ref<'cores' | 'rooms' | 'controls'>('cores')
           {{ isPublishing ? 'PUBLISHING...' : 'HOST NOSTR ROOM (P2P)' }}
         </button>
         <button class="action-btn lan-btn" @click="emit('hostLan')">
-          HOST LAN (QR CODE)
+          HOST LAN MATCH
         </button>
         <button class="action-btn join-code-btn" @click="emit('joinLan')">
-          PASTE PEER TOKEN
+          JOIN LAN (PASTE ADDRESS)
         </button>
       </footer>
     </div>

@@ -13,6 +13,8 @@ import Lobby from './components/Lobby.vue'
 import Hud from './components/Hud.vue'
 import Scoreboard from './components/Scoreboard.vue'
 import QrModal from './components/QrModal.vue'
+import LanModal from './components/LanModal.vue'
+import { LanSignaler } from './net/lan'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const inLobby = ref(true)
@@ -42,6 +44,15 @@ const qrModal = ref({
   mode: 'display' as 'display' | 'input',
   pendingCallback: null as ((data: any) => void) | null
 })
+
+// Simplified LAN Modal State
+const lanModal = ref({
+  show: false,
+  mode: 'join' as 'host' | 'join',
+  connectedPeersCount: 1
+})
+const lanModalRef = ref<InstanceType<typeof LanModal> | null>(null)
+let lanSignaler: LanSignaler | null = null
 
 let engine: GameEngine | null = null
 let sceneRenderer: SceneRenderer | null = null
@@ -159,11 +170,14 @@ const createNostrRoom = async () => {
     }
   })
 
-  await publishRoom(room)
-  isPublishingRoom.value = false
-
+  // Launch match immediately for host (no blocking on remote relay network)
   initEngine(seed, 'host')
   engine?.setHostNetwork(p2pHost)
+
+  // Publish room to NOSTR relays in background
+  publishRoom(room).finally(() => {
+    isPublishingRoom.value = false
+  })
 }
 
 // 3. Join NOSTR Room
@@ -187,63 +201,122 @@ const joinNostrRoom = async (room: NostrRoom) => {
     await sendSignalingMessage(room.pubkey, { type: 'offer', offer })
   })
 
-  initEngine(room.seed, 'client')
+  initEngine(room.seed || getDailySeed(), 'client')
   engine?.setClientNetwork(p2pClient)
 }
 
-// 4. Host LAN via QR Code
+// 4. Host LAN via simple Host Address
 const hostLan = async () => {
   const seed = getDailySeed()
   p2pHost = new P2PHost(
-    (msg, fromId) => engine?.handleNetworkMessage(msg, fromId)
+    (msg, fromId) => engine?.handleNetworkMessage(msg, fromId),
+    () => {
+      lanModal.value.connectedPeersCount = (p2pHost?.peers.size || 0) + 1
+    },
+    () => {
+      lanModal.value.connectedPeersCount = (p2pHost?.peers.size || 0) + 1
+    }
   )
 
-  qrModal.value = {
-    show: true,
-    title: 'PASTE INCOMING PEER OFFER',
-    signalData: '',
-    mode: 'input',
-    pendingCallback: async (offerStr: string) => {
+  lanSignaler = new LanSignaler()
+  try {
+    const ws = await lanSignaler.connect(window.location.host || 'localhost:30300')
+    ws.send(JSON.stringify({
+      type: 'register_host',
+      seed,
+      name: callsign.value,
+      core: selectedCore.value
+    }))
+
+    ws.onmessage = async (e) => {
       try {
-        const offer = decodeSignal(offerStr)
-        await p2pHost!.handleIncomingOffer(offer, (answer) => {
-          qrModal.value = {
-            show: true,
-            title: 'SHARE THIS ANSWER TOKEN WITH PEER',
-            signalData: encodeSignal(answer),
-            mode: 'display',
-            pendingCallback: null
-          }
-        })
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'peer_offer') {
+          await p2pHost!.handleIncomingOffer(msg.offer, (answer) => {
+            ws.send(JSON.stringify({
+              type: 'host_answer',
+              peerId: msg.peerId,
+              answer
+            }))
+          })
+        }
       } catch (err) {
-        alert('Invalid token format!')
+        console.warn('LAN signaling error:', err)
       }
     }
+  } catch (err) {
+    console.warn('Local LAN websocket signaling broker unavailable:', err)
   }
 
-  initEngine(seed, 'host')
-  engine?.setHostNetwork(p2pHost)
+  lanModal.value = {
+    show: true,
+    mode: 'host',
+    connectedPeersCount: 1
+  }
 }
 
-// 5. Join LAN via Code/QR
-const joinLan = async () => {
+const startHostMatch = () => {
   const seed = getDailySeed()
-  p2pClient = new P2PClient(
-    (msg) => engine?.handleNetworkMessage(msg)
-  )
+  lanModal.value.show = false
+  initEngine(seed, 'host')
+  engine?.setHostNetwork(p2pHost!)
+}
 
-  await p2pClient.createOffer((offer) => {
-    qrModal.value = {
-      show: true,
-      title: 'SHARE THIS OFFER WITH HOST',
-      signalData: encodeSignal(offer),
-      mode: 'display',
-      pendingCallback: null
+// 5. Join LAN via Host Address
+const joinLan = () => {
+  lanModal.value = {
+    show: true,
+    mode: 'join',
+    connectedPeersCount: 1
+  }
+}
+
+const handleJoinLan = async (hostAddress: string) => {
+  lanSignaler = new LanSignaler()
+  try {
+    const ws = await lanSignaler.connect(hostAddress)
+    p2pClient = new P2PClient(
+      (msg) => engine?.handleNetworkMessage(msg),
+      () => console.log('Connected to LAN host DataChannel!')
+    )
+
+    ws.onmessage = async (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'host_answer') {
+          await p2pClient!.handleAnswer(msg.answer)
+          lanModal.value.show = false
+          initEngine(msg.seed || getDailySeed(), 'client')
+          engine?.setClientNetwork(p2pClient!)
+        } else if (msg.type === 'error') {
+          lanModalRef.value?.setConnecting(false, msg.message)
+        }
+      } catch (err) {
+        lanModalRef.value?.setConnecting(false, 'Failed to process host answer')
+      }
     }
-  })
 
-  initEngine(seed, 'client')
-  engine?.setClientNetwork(p2pClient)
+    await p2pClient.createOffer((offer) => {
+      ws.send(JSON.stringify({
+        type: 'peer_offer',
+        offer,
+        callsign: callsign.value
+      }))
+    })
+  } catch (err: any) {
+    lanModalRef.value?.setConnecting(false, err.message || 'Could not connect to host address')
+  }
+}
+
+const switchToAirgap = () => {
+  lanModal.value.show = false
+  qrModal.value = {
+    show: true,
+    title: 'AIR-GAP SIGNALING',
+    signalData: '',
+    mode: 'input',
+    pendingCallback: null
+  }
 }
 
 const handleSignalSubmit = (val: string) => {
@@ -299,7 +372,19 @@ const handleSignalSubmit = (val: string) => {
       :local-player-id="localPlayer.id || 1"
     />
 
-    <!-- QR / LAN Modal -->
+    <!-- Simplified LAN Modal (Host Address) -->
+    <LanModal
+      ref="lanModalRef"
+      :show="lanModal.show"
+      :mode="lanModal.mode"
+      :connected-peers-count="lanModal.connectedPeersCount"
+      @close="lanModal.show = false"
+      @join="handleJoinLan"
+      @start-match="startHostMatch"
+      @switch-airgap="switchToAirgap"
+    />
+
+    <!-- Air-gapped QR / Token Modal -->
     <QrModal
       :show="qrModal.show"
       :title="qrModal.title"

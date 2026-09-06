@@ -251,14 +251,15 @@ export function generateMap(seed: number): MapData {
     spawns.push({ x: b.x + 3, y: 1.6, z: b.z + 3 })
   }
 
-  // Canonical outpost spawns
-  for (const [x, z] of [
-    [330, 330], [-330, 330], [330, -330], [-330, -330],
-    [360, 0], [-360, 0], [0, 360], [0, -360],
+  // Canonical outpost & central plaza spawns (open daylight locations prioritized at front)
+  const openAirSpawns = [
+    [0, 50], [0, -50], [50, 0], [-50, 0],
     [180, 300], [-180, 300], [180, -300], [-180, -300],
-    [0, 50], [0, -50], [50, 0], [-50, 0]
-  ] as const) {
-    spawns.push({ x, y: 1.6, z })
+    [330, 330], [-330, 330], [330, -330], [-330, -330],
+    [360, 0], [-360, 0], [0, 360], [0, -360]
+  ] as const
+  for (const [x, z] of openAirSpawns) {
+    spawns.unshift({ x, y: 1.6, z })
   }
 
   return {

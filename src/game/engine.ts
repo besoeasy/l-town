@@ -57,7 +57,12 @@ export class GameEngine {
     this.nearbyBoxes = nearby
     this.scene.buildMapGeometry(this.map)
 
-    const spawn = this.map.spawns[0] || { x: 0, y: 1.6, z: 0 }
+    const openSpawns = this.map.spawns.filter(s => {
+      const d = Math.hypot(s.x, s.z)
+      return (d >= 40 && d <= 80) || d >= 240
+    })
+    const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
+    const spawn = spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50 }
     this.localPlayer = {
       id: 1,
       name: callsign || 'Anonymous',
@@ -437,7 +442,12 @@ export class GameEngine {
     for (const p of this.players.values()) {
       if (!p.alive) {
         if (p.respawnAt > 0 && now >= p.respawnAt) {
-          const s = this.map.spawns[Math.floor(Math.random() * this.map.spawns.length)]
+          const openSpawns = this.map.spawns.filter(s => {
+            const d = Math.hypot(s.x, s.z)
+            return (d >= 40 && d <= 80) || d >= 240
+          })
+          const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
+          const s = spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50 }
           p.x = s.x; p.y = s.y; p.z = s.z
           p.health = Math.floor(CFG.MAX_HEALTH * 0.75)
           p.alive = true
