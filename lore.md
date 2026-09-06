@@ -14,7 +14,7 @@ Humans no longer fight physically. No boots on the ground, no bodies on other pl
 
 Every unit in L-Town is the same RX-11 chassis: a pure nanobot swarm held in humanoid form. Same hull. Same speed. Same wiring. The swarm could reshape, but the link cannot — operators think in arms and legs, so the signal locks the mass to a body pilots can feel.
 
-No variants. No upgrades. Fixed by treaty so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch.
+No variants. No upgrades. Fixed by arena charter so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch. One chassis serves as army, miner, and general robot.
 
 A destroyed swarm is reclaimed on the spot and reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
 
@@ -54,7 +54,7 @@ Eleven organisations submitted cores for this season:
 
 L-Town is a decommissioned transit hub kept as a battleground for testing new tech. Its roads, garage, and office tower remain from the Meridian freight days. Meridian still fields Telepotu — drone logs and neutral refs keep the contest honest.
 
-Makers prove their cores here. Winning cores earn glory and off-world contracts — mining runs, hostile encounters, and survey work on planets humans cannot enter. Combat in the arena is the job interview.
+Makers prove their cores here. Winning cores earn glory and off-world contracts — army deployments, mining runs, hostile clearance, and general labor on planets humans cannot enter. Combat in the arena is the job interview.
 
 Each trial runs 10 minutes. Highest score wins. Cheap expendable drone swarms track every unit for the live leaderboard — losses expected. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
@@ -64,4 +64,4 @@ The arena regenerates each dawn. One map per day — everyone fights the same to
 
 Operators are open amateurs. Anyone with a neural link can join — no license, no team required. Amateurs are cheap and expendable: thousands of free crash-test pilots, and the crowd loves watching themselves. Most fight for viral fame and leaderboard clips.
 
-Death in L-Town is a disconnect, not a death. The best amateurs get signed to run real mining, clearance, and first-contact work off-world — through the same swarms.
+Death in L-Town is a disconnect, not a death. The best amateurs get signed to serve off-world as army, miners, and general robots — through the same swarms.
