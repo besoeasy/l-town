@@ -194,6 +194,44 @@ let localGrounded = true;
 let spaceDownTime = 0;    // timestamp when space pressed (0 = not held)
 const SUPER_JUMP_CHARGE_MS = 450; // hold time to trigger super jump
 
+// ─── CLIENT SPATIAL INDEX (mirrors server.js:25 — O(~15) vs O(600)) ─────────
+const BOX_CELL = 20;
+let _boxGrid = new Map();
+function buildBoxGrid() {
+  _boxGrid = new Map();
+  if (!mapData) return;
+  for (const box of mapData.boxes) {
+    const x0 = Math.floor((box.x - box.w / 2 - 1) / BOX_CELL);
+    const x1 = Math.floor((box.x + box.w / 2 + 1) / BOX_CELL);
+    const z0 = Math.floor((box.z - box.d / 2 - 1) / BOX_CELL);
+    const z1 = Math.floor((box.z + box.d / 2 + 1) / BOX_CELL);
+    for (let gx = x0; gx <= x1; gx++) {
+      for (let gz = z0; gz <= z1; gz++) {
+        const k = (gx + 200) * 1000 + (gz + 200);
+        let arr = _boxGrid.get(k);
+        if (!arr) { arr = []; _boxGrid.set(k, arr); }
+        arr.push(box);
+      }
+    }
+  }
+}
+function nearbyBoxes(x, z) {
+  const cx = Math.floor(x / BOX_CELL);
+  const cz = Math.floor(z / BOX_CELL);
+  const seen = new Set();
+  const out = [];
+  for (let gx = cx - 1; gx <= cx + 1; gx++) {
+    for (let gz = cz - 1; gz <= cz + 1; gz++) {
+      const arr = _boxGrid.get((gx + 200) * 1000 + (gz + 200));
+      if (!arr) continue;
+      for (const b of arr) {
+        if (!seen.has(b)) { seen.add(b); out.push(b); }
+      }
+    }
+  }
+  return out;
+}
+
 // ─── CHARGE SHOT STATE ───────────────────────────────────────────────────────
 const CHARGE_MAX      = 4;
 const CHARGE_TICK_MS  = 300;   // ms per charge pip added while holding right-click
@@ -1298,10 +1336,10 @@ function renderLoop() {
     const prevLocalY = localPos.y;
     localVy -= 26 * dt;
     localPos.y += localVy * dt;
-    // Land on top of boxes when falling
+    // Land on top of boxes when falling — spatial query O(~15)
     if (localVy <= 0 && mapData) {
       const pr = cfg.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
-      for (const box of mapData.boxes) {
+      for (const box of nearbyBoxes(localPos.x, localPos.z)) {
         const bTop = box.y + box.h / 2;
         if (prevLocalY >= bTop - 0.05 && localPos.y <= bTop &&
             Math.abs(localPos.x - box.x) < box.w / 2 + pr &&
@@ -1350,14 +1388,14 @@ function renderLoop() {
       localPos.z += (mz / len) * speed * dt;
     }
 
-    // Client-side horizontal collision (mirrors server resolveCollision)
+    // Client-side horizontal collision (mirrors server resolveCollision) — spatial query
     if (mapData) {
       const pr = cfg?.PLAYER_RADIUS ?? CFG.PLAYER_RADIUS;
       const bound = (mapData.floor?.w ?? 250) / 2 - 0.5;
       localPos.x = Math.max(-bound, Math.min(bound, localPos.x));
       localPos.z = Math.max(-bound, Math.min(bound, localPos.z));
       for (let pass = 0; pass < 3; pass++) {
-        for (const box of mapData.boxes) {
+        for (const box of nearbyBoxes(localPos.x, localPos.z)) {
           const hw   = box.w / 2 + pr;
           const hd   = box.d / 2 + pr;
           const bTop = box.y + box.h / 2;
@@ -1971,6 +2009,7 @@ function _onWSMessage(e) {
   if (msg.type === 'welcome') {
     myId    = msg.playerId;
     mapData = generateMap(msg.seed);
+    buildBoxGrid();
     cfg     = { ...CFG, ...msg.cfg };
     if (msg.reconnectToken) {
       reconnectToken = msg.reconnectToken;
