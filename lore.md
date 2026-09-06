@@ -12,7 +12,7 @@ Humans no longer fight physically. No boots on the ground, no bodies on other pl
 
 ## The RX-11 Chassis
 
-Every unit in L-Town is the same RX-11 chassis: a pure nanobot swarm held in humanoid form. Same hull. Same speed. Same wiring. The swarm could reshape, but the link cannot — operators think in arms and legs, so the signal locks the mass to a body pilots can feel.
+Every unit in L-Town is the same RX-11 chassis: an inert nanobot shell held in humanoid form. Without a core it has no energy and does nothing. Same hull. Same speed. Same wiring. The swarm could reshape, but the link cannot — operators think in arms and legs, so the signal locks the mass to a body pilots can feel.
 
 No variants. No upgrades. Fixed by arena charter so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch. One chassis serves as army, miner, and general robot.
 
@@ -22,15 +22,15 @@ A destroyed swarm is reclaimed on the spot and reprinted. Rushed prints boot at 
 
 Hull is a census. The number is how many nanites remain in the swarm.
 
-Damage destroys nanites. Fire spends them — every bullet is mass leaving the body. Shield hardens mass into a dense ablative wall. Super overclocks the swarm. Jump burns are mass spent for lift.
+Nanites are fuel, function, and mass at once. Fire spends them — every projectile is nanites leaving the body. High jumps burn crowds of them for lift. Shield is a nanite covering that absorbs damage. Super overclocks the burn.
 
-The chassis fabricates replacements from ambient matter. Hold still and intakes pull from the air to rebuild. Crouch to open the intakes wide and rebuild faster. Move, and fabrication slows. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms.
+Nanites are made by the core, not the body. The core pulls matter from the atmosphere and builds slowly. When the robot moves and fights, the core spends its output as energy. When the robot stands still, draw drops and the core shifts to fabrication — that is the recharge. Crouch draws least, so it rebuilds fastest. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms.
 
 ## The Atma Core
 
-Each swarm is powered by an Atma Core. Atma means soul.
+Each shell is powered by an Atma Core. Atma means soul. Insert the core and it takes the whole robot — directs every nanite, and the body takes the core's form. The core is the identity.
 
-The core provides energy and one combat ability. Each core holds a copied mind-pattern of its maker's founder — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
+Most swarms run standard cores. The eleven Makers build custom cores for their own purposes. Each holds a copied mind-pattern of its maker's founder — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
 
 Swap the core, change the soul. The body stays the same.
 
