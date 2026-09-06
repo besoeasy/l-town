@@ -6,13 +6,13 @@ In 3049, humans never touch the ground. Robots go down. Operators stay in orbit.
 
 ## Year 3049 — The Remote Age
 
-After the Helios Storms of 2910 — solar flares that stripped surface shielding — planetary surfaces became lethal to unshielded humans. Landings were banned by the Orbit Treaty.
+After the Helios Storms of 2910 — solar flares that stripped surface shielding — planetary surfaces turned hostile to unshielded humans. No treaty bans landings. It is simply not worth the risk: sending a human takes years, while an operator can link instantly to a chassis already printed on that planet or held on a starship nearby.
 
 Humans no longer fight physically. No boots on the ground, no bodies on other planets — our bodies cannot survive their environments. Exploration, mining, hostile clearance, and war are done by robots. Pilots connect from stations above.
 
 ## The RX-11 Chassis
 
-Every unit in L-Town is the same RX-11 chassis: a pure nanobot swarm held in humanoid form. Same hull. Same speed. Same wiring.
+Every unit in L-Town is the same RX-11 chassis: a pure nanobot swarm held in humanoid form. Same hull. Same speed. Same wiring. The swarm could reshape, but the link cannot — operators think in arms and legs, so the signal locks the mass to a body pilots can feel.
 
 No variants. No upgrades. Fixed by treaty so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch.
 
@@ -24,7 +24,7 @@ Hull is a census. The number is how many nanites remain in the swarm.
 
 Damage destroys nanites. Fire spends them — every bullet is mass leaving the body. Super, shield, and jump burns are mass spent for power.
 
-The chassis fabricates replacements from ambient matter. Hold still and intakes pull from the air to rebuild. Crouch to open the intakes wide and rebuild faster. Move, and fabrication slows. Nothing is free — the body is the ammunition.
+The chassis fabricates replacements from ambient matter. Hold still and intakes pull from the air to rebuild. Crouch to open the intakes wide and rebuild faster. Move, and fabrication slows. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms.
 
 ## The Atma Core
 
@@ -45,7 +45,7 @@ Eleven organisations submitted cores for this season:
 - **Tank** — Bastion Siege Foundry. Bulwark doctrine. Takes half damage for 8 seconds.
 - **Anchor** — Orbital Guard. Aegis shields. 3 seconds of full immunity.
 - **Surge** — Deep Vein Mining Guild. Siphon tech. Drains 30 hull from the nearest enemy.
-- **Jinx** — Black Lotus AI Lab. Retaliation code. Killer loses 80 hull when you die.
+- **Jinx** — Black Lotus AI Lab. Retaliation code. Dying swarm fires a dead-man overload into its killer (80 hull).
 - **Gambler** — Vesper Casino-State. Probability weapons. Heal, teleport, or die.
 - **Parasite** — Green Hive. Leech ecology. Drains nearby enemies for 6 seconds.
 - **Berserker** — Red Pit Fighters. Rage stimulant. +50% damage and +25% speed for 8 seconds.
@@ -58,10 +58,10 @@ Makers prove their cores here. Winning cores earn glory and off-world contracts 
 
 Each trial runs 10 minutes. Highest score wins. Automated drones track every unit for the live leaderboard. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
-The arena regenerates each dawn. One map per day — everyone fights the same town.
+The arena regenerates each dawn. One map per day — everyone fights the same town. Printers recycle the wreckage overnight and print a fresh layout by morning.
 
 ## Operators
 
-Operators are open amateurs. Anyone with a neural link can join — no license, no team required. Most fight for viral fame and leaderboard clips.
+Operators are open amateurs. Anyone with a neural link can join — no license, no team required. Amateurs are cheap and expendable: thousands of free crash-test pilots, and the crowd loves watching themselves. Most fight for viral fame and leaderboard clips.
 
 Death in L-Town is a disconnect, not a death. The best amateurs get signed to run real mining, clearance, and first-contact work off-world — through the same swarms.
