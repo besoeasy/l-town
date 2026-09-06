@@ -18,6 +18,14 @@ No variants. No upgrades. Fixed by treaty so only cores compete. A swarm is chea
 
 A destroyed swarm is reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
 
+## Hull — Nanite Mass
+
+Hull is a census. The number is how many nanites remain in the swarm.
+
+Damage destroys nanites. Fire spends them — every bullet is mass leaving the body. Super, shield, and jump burns are mass spent for power.
+
+The chassis fabricates replacements from ambient matter. Hold still and intakes pull from the air to rebuild. Crouch to open the intakes wide and rebuild faster. Move, and fabrication slows. Nothing is free — the body is the ammunition.
+
 ## The Atma Core
 
 Each swarm is powered by an Atma Core. Atma means soul.
