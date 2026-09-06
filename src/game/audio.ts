@@ -1,0 +1,293 @@
+// Synthesized Web Audio API sound engine for L-Town
+class SoundEngine {
+  private ctx: AudioContext | null = null
+  private footstepTimer: any = null
+  private isWalking = false
+  private rechargeOsc: OscillatorNode | null = null
+  private rechargeGain: GainNode | null = null
+
+  private init() {
+    if (!this.ctx) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioContextClass) {
+        this.ctx = new AudioContextClass()
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume()
+    }
+  }
+
+  playShoot(heavy = false) {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = heavy ? 'sawtooth' : 'triangle'
+    osc.frequency.setValueAtTime(heavy ? 220 : 480, now)
+    osc.frequency.exponentialRampToValueAtTime(heavy ? 40 : 60, now + (heavy ? 0.22 : 0.12))
+
+    gain.gain.setValueAtTime(heavy ? 0.35 : 0.22, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (heavy ? 0.22 : 0.12))
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + (heavy ? 0.22 : 0.12))
+  }
+
+  playHit() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(140, now)
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.18)
+
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.18)
+  }
+
+  playHitConfirm(killed = false) {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(killed ? 960 : 720, now)
+    osc.frequency.exponentialRampToValueAtTime(killed ? 1280 : 880, now + 0.08)
+
+    gain.gain.setValueAtTime(killed ? 0.25 : 0.15, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.08)
+  }
+
+  playKill() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    // Canon Kill Jingle: 440 -> 880 -> 1200
+    const notes = [
+      { f: 520, dur: 0.06, delay: 0 },
+      { f: 780, dur: 0.08, delay: 0.06 },
+      { f: 1180, dur: 0.16, delay: 0.14 },
+    ]
+
+    for (const note of notes) {
+      const osc = this.ctx.createOscillator()
+      const gain = this.ctx.createGain()
+
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(note.f, now + note.delay)
+
+      gain.gain.setValueAtTime(0.18, now + note.delay)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + note.delay + note.dur)
+
+      osc.connect(gain)
+      gain.connect(this.ctx.destination)
+
+      osc.start(now + note.delay)
+      osc.stop(now + note.delay + note.dur)
+    }
+  }
+
+  playSuper() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(150, now)
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.35)
+
+    gain.gain.setValueAtTime(0.2, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.35)
+  }
+
+  playShield() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(300, now)
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.4)
+
+    gain.gain.setValueAtTime(0.25, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.4)
+  }
+
+  playSuperJump() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(80, now)
+    osc.frequency.exponentialRampToValueAtTime(540, now + 0.28)
+
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.28)
+  }
+
+  playDie() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(320, now)
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.45)
+
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.45)
+  }
+
+  playAbility() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(350, now)
+    osc.frequency.exponentialRampToValueAtTime(900, now + 0.25)
+
+    gain.gain.setValueAtTime(0.25, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.25)
+  }
+
+  startFootsteps(running = false) {
+    if (this.isWalking) return
+    this.isWalking = true
+    const interval = running ? 260 : 380
+
+    const step = () => {
+      if (!this.isWalking) return
+      this.init()
+      if (this.ctx) {
+        const now = this.ctx.currentTime
+        const osc = this.ctx.createOscillator()
+        const gain = this.ctx.createGain()
+        osc.type = 'triangle'
+        osc.frequency.setValueAtTime(80, now)
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.05)
+        gain.gain.setValueAtTime(0.08, now)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
+        osc.connect(gain)
+        gain.connect(this.ctx.destination)
+        osc.start(now)
+        osc.stop(now + 0.05)
+      }
+      this.footstepTimer = setTimeout(step, interval)
+    }
+    step()
+  }
+
+  stopFootsteps() {
+    this.isWalking = false
+    if (this.footstepTimer) {
+      clearTimeout(this.footstepTimer)
+      this.footstepTimer = null
+    }
+  }
+
+  startRecharge() {
+    if (this.rechargeOsc) return
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    this.rechargeOsc = this.ctx.createOscillator()
+    this.rechargeGain = this.ctx.createGain()
+
+    this.rechargeOsc.type = 'sine'
+    this.rechargeOsc.frequency.setValueAtTime(220, now)
+    this.rechargeGain.gain.setValueAtTime(0.04, now)
+
+    this.rechargeOsc.connect(this.rechargeGain)
+    this.rechargeGain.connect(this.ctx.destination)
+
+    this.rechargeOsc.start(now)
+  }
+
+  stopRecharge() {
+    if (this.rechargeOsc) {
+      try {
+        this.rechargeOsc.stop()
+        this.rechargeOsc.disconnect()
+      } catch {}
+      this.rechargeOsc = null
+      this.rechargeGain = null
+    }
+  }
+}
+
+export const sound = new SoundEngine()
