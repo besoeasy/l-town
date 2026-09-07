@@ -28,6 +28,12 @@
 >
 > *(Note: Node.js and npm are not installed on the host; builds and tests execute inside the container).*
 
+## 2.1 Feature-First Rule
+
+> [!IMPORTANT]
+> **NEVER WORRY ABOUT BACKWARD COMPATIBILITY**:
+> Always implement features in the best way possible for the current design. Do not carry legacy formats, deprecated fields, version checks, migration shims, or old-client fallbacks. Break and replace freely — all peers run the same fresh build.
+
 ---
 
 ## 3. Game Canon & Mechanics (from commit `e392b58b6b4981ece32cff242cbda5a07fceb0f4`)
