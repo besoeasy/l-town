@@ -48,7 +48,7 @@ Each chassis is powered by an Atma Core holding a copied mind-pattern. The core 
 
 | Core ID | Maker | Ability [Q] | Cooldown | Effect |
 |---|---|---|---|---|
-| `telepotu` | Meridian Transit Cartel | Warp Logistics | 60s | Swaps positions with a random alive enemy |
+| `telepotu` | Vela Relay Compact | Warp Logistics | 60s | Swaps positions with a random alive enemy |
 | `chumantr` | Pale Choir | Stealth Cloak | 30s | Vanishes for 10s; cannot shoot while cloaked |
 | `denja` | Kuro Racer Syndicate | Overdrive | 30s | 2× movement speed burst for 8s |
 | `mednix` | Helix Med-Corps | Field Repair | 20s | Instantly restores 1–50 Hull |

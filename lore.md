@@ -38,7 +38,7 @@ Swap the core, change the soul. The body stays the same.
 
 Eleven organisations submitted custom cores for this season. Fizzle rule: no valid target means the glitch fires empty — full cooldown, no refund:
 
-- **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy within 120 units.
+- **Telepotu** — Vela Relay Compact. Breakaway freight engineers, ex-Meridian. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy within 120 units.
 - **Chumantr** — Pale Choir stealth cult. Survey sneak for hostile ground. Full ghost for 10 seconds — move only, no shoot, no Q/R/Super.
 - **Denja** — Kuro Racer Syndicate. Overdrive engines, Atma governor caps burst at 8s. 2× speed, free, no frailty.
 - **Mednix** — Helix Med-Corps. Field repair, self only. Pure random 1–50 hull instantly, capped at full.
@@ -52,7 +52,7 @@ Eleven organisations submitted custom cores for this season. Fizzle rule: no val
 
 ## L-Town Protocol
 
-L-Town is a decommissioned transit hub kept as a battleground for testing new tech. Its roads, garage, and office tower remain from the Meridian freight days. Meridian still fields Telepotu — drone logs and neutral refs keep the contest honest.
+L-Town is a decommissioned transit hub kept as a battleground for testing new tech. Its roads, garage, and office tower remain from the Meridian freight days. Meridian keeps the printers and walls as neutral host and fields no core — drone logs and neutral refs keep the contest honest.
 
 Makers prove their cores here. Winning cores earn glory and off-world contracts — army deployments, mining runs, hostile clearance, and general labor on planets humans cannot enter. Combat in the arena is the job interview.
 

@@ -68,7 +68,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
   telepotu: {
     id: 'telepotu',
     name: 'Telepotu',
-    maker: 'Meridian Transit Cartel',
+    maker: 'Vela Relay Compact',
     ability: 'Warp Logistics',
     cooldown: 60000,
     color: '#00f0ff',
