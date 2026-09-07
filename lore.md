@@ -16,7 +16,7 @@ Every unit in L-Town is the same RX-11 chassis: an inert nanobot shell held in h
 
 No variants. No upgrades. Fixed by arena charter so only cores compete. A swarm is cheap to print and easy to ship — built for worlds humans can never touch. One chassis serves as army, miner, and general robot.
 
-A destroyed swarm is reclaimed on the spot and reprinted. Rushed prints boot at 75% hull — full strength takes time the trial does not give. A disconnected operator wakes up.
+A destroyed swarm is reclaimed on the spot and reprinted. Dawn prints start full — rushed reprints boot at 75% hull (375). Full strength takes time the trial does not give. A disconnected operator wakes up.
 
 ## Hull — Nanite Mass
 
@@ -24,31 +24,31 @@ Hull is a census. The number is how many nanites remain in the swarm.
 
 Nanites are fuel, function, and mass at once. Fire spends them — every projectile is nanites leaving the body. High jumps burn crowds of them for lift. Shield is a nanite covering that absorbs damage. Super overclocks the burn.
 
-Nanites are made by the core, not the body. The core pulls matter from the atmosphere and builds slowly. When the robot moves and fights, the core spends its output as energy. When the robot stands still, draw drops and the core shifts to fabrication — that is the recharge. Crouch draws least, so it rebuilds fastest. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms.
+Nanites are made by the core, not the body. The core pulls matter from the atmosphere and builds slowly. When the robot moves and fights, the core spends its output as energy. When the robot stands still, draw drops and the core shifts to fabrication — that is the recharge. Crouch draws least, so it rebuilds fastest. Nothing is free — the body is the ammunition. Exceptions steal instead of build: Mednix recycles waste heat into mass, Surge and Parasite rip nanites off nearby swarms. When a link severs, the killer's core auto-siphons the loose cache before printers reclaim the rest (+100 Hull, capped at full).
 
 ## The Atma Core
 
 Each shell is powered by an Atma Core. Atma means soul. Insert the core and it takes the whole robot — directs every nanite, and the body takes the core's form. The core is the identity.
 
-Most swarms run standard cores. The eleven Makers build custom cores for their own purposes. Each holds a copied mind-pattern of its maker's founder — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
+Most swarms ran standard cores in the past. This season only the eleven Maker customs are legal — no vanilla. Each holds a copied mind-pattern of its maker's founder — a transit engineer, a cult ghost, a pit-fighter. Copies glitch. The glitch is the ability.
 
 Swap the core, change the soul. The body stays the same.
 
 ## The Makers
 
-Eleven organisations submitted custom cores for this season:
+Eleven organisations submitted custom cores for this season. Fizzle rule: no valid target means the glitch fires empty — full cooldown, no refund:
 
-- **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy.
-- **Chumantr** — Pale Choir stealth cult. Survey sneak for hostile ground. Vanishes for 10 seconds, can't shoot.
-- **Denja** — Kuro Racer Syndicate. Overdrive engines, Atma governor caps burst at 8s. 2× speed.
-- **Mednix** — Helix Med-Corps. Field repair. Restores 1–50 hull instantly.
-- **Tank** — Bastion Siege Foundry. Bulwark doctrine. Takes half damage for 8 seconds.
-- **Anchor** — Orbital Guard. Aegis shields. Pre-charged cell fires one 3s immunity.
-- **Surge** — Deep Vein Mining Guild. Siphon tech. Drains 30 hull from the nearest enemy.
-- **Jinx** — Black Lotus AI Lab. Retaliation code. Dying swarm fires a dead-man overload into its killer (80 hull).
-- **Gambler** — Vesper Casino-State. Desperate odds. Heal or teleport is worth the death chance on hostile worlds.
-- **Parasite** — Green Hive. Leech ecology with kin filter, drinks only strangers. Drains nearby enemies for 6 seconds.
-- **Berserker** — Red Pit Fighters. Chemical overclock for nanites, pilot stays sober. +50% damage and +25% speed for 8 seconds.
+- **Telepotu** — Meridian Transit Cartel. Warp logistics. Escape tool for cave-ins and ambushes — swaps with a random enemy within 120 units.
+- **Chumantr** — Pale Choir stealth cult. Survey sneak for hostile ground. Full ghost for 10 seconds — move only, no shoot, no Q/R/Super.
+- **Denja** — Kuro Racer Syndicate. Overdrive engines, Atma governor caps burst at 8s. 2× speed, free, no frailty.
+- **Mednix** — Helix Med-Corps. Field repair, self only. Pure random 1–50 hull instantly, capped at full.
+- **Tank** — Bastion Siege Foundry. Bulwark doctrine. Takes half damage for 8 seconds, full speed.
+- **Anchor** — Orbital Guard. Aegis shields. Pre-charged cell fires one 3s immunity, reusable every 40s, zero hull cost.
+- **Surge** — Deep Vein Mining Guild. Siphon tech. Rips 30 hull off the nearest enemy within 40 units, keeps 15 — rest lost to heat.
+- **Jinx** — Black Lotus AI Lab. Retaliation code. Dying swarm fires a dead-man overload into its killer within 60 units (80 hull) — snipers safe, no killer means no curse.
+- **Gambler** — Vesper Casino-State. Desperate odds, equal thirds: heal +200 (capped), teleport onto enemy, or instant death.
+- **Parasite** — Green Hive. Leech ecology with kin filter — other Parasites are kin and immune. Drains 8/s off all strangers within 15 units for 6 seconds, keeps half.
+- **Berserker** — Red Pit Fighters. Chemical overclock for nanites, pilot stays sober. +50% damage and +25% speed for 8 seconds, then burnout crash −50 hull.
 
 ## L-Town Protocol
 
@@ -58,7 +58,7 @@ Makers prove their cores here. Winning cores earn glory and off-world contracts 
 
 Each trial runs 10 minutes. Highest score wins. Cheap expendable drone swarms track every unit for the live leaderboard — losses expected. Top 3 pilots earn headline slots and sponsor contracts for the off-world circuit.
 
-The arena regenerates each dawn. One map per day — everyone fights the same town. Printers recycle the wreckage overnight and print a fresh layout by morning.
+The arena regenerates each dawn. One map per day — everyone fights the same town, daily seed only, no private layouts. Printers recycle the wreckage overnight and print a fresh layout by morning.
 
 ## Operators
 

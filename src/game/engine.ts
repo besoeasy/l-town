@@ -276,7 +276,7 @@ export class GameEngine {
   }
 
   private triggerSuper() {
-    if (!this.localPlayer.alive || this.localPlayer.superActive) return
+    if (!this.localPlayer.alive || this.localPlayer.superActive || this.localPlayer.invisible) return
     if (this.localPlayer.health >= CFG.SUPER_COST + 1) {
       this.localPlayer.health -= CFG.SUPER_COST
       this.localPlayer.superActive = true
@@ -290,7 +290,7 @@ export class GameEngine {
   }
 
   private triggerShield() {
-    if (!this.localPlayer.alive || this.localPlayer.shieldActive || this.localPlayer.superActive) return
+    if (!this.localPlayer.alive || this.localPlayer.shieldActive || this.localPlayer.superActive || this.localPlayer.invisible) return
     if (this.localPlayer.health >= CFG.SHIELD_COST + 1) {
       this.localPlayer.health -= CFG.SHIELD_COST
       this.localPlayer.shieldActive = true
@@ -304,7 +304,7 @@ export class GameEngine {
   }
 
   private triggerClassAbility() {
-    if (!this.localPlayer.alive || this.localPlayer.superActive) return
+    if (!this.localPlayer.alive || this.localPlayer.superActive || this.localPlayer.invisible) return
     const now = Date.now()
     const core = CORE_DETAILS[this.localPlayer.character]
     if (core.cooldown > 0 && now - this.lastAbilityUsedAt < core.cooldown) return
@@ -326,7 +326,10 @@ export class GameEngine {
     const now = Date.now()
     switch (player.character) {
       case 'telepotu': {
-        const enemies = [...this.players.values()].filter(p => p.alive && p.id !== player.id)
+        const enemies = [...this.players.values()].filter(p => {
+          if (!p.alive || p.id === player.id || p.invisible) return false
+          return Math.hypot(p.x - player.x, p.z - player.z) <= 120
+        })
         if (enemies.length > 0) {
           const target = enemies[Math.floor(Math.random() * enemies.length)]
           const tmp = { x: player.x, y: player.y, z: player.z }
@@ -353,7 +356,7 @@ export class GameEngine {
         player.shieldEnd = now + 3000
         break
       case 'surge': {
-        const enemies = [...this.players.values()].filter(p => p.alive && p.id !== player.id)
+        const enemies = [...this.players.values()].filter(p => p.alive && p.id !== player.id && !p.invisible)
         let nearest: PlayerState | null = null
         let minDist = 40
         for (const e of enemies) {
@@ -365,8 +368,10 @@ export class GameEngine {
         }
         if (nearest) {
           const drain = Math.min(30, nearest.health - 1)
-          nearest.health -= drain
-          player.health = Math.min(CFG.MAX_HEALTH, player.health + drain)
+          if (drain > 0) {
+            nearest.health -= drain
+            player.health = Math.min(CFG.MAX_HEALTH, player.health + Math.min(15, drain))
+          }
         }
         break
       }
@@ -385,9 +390,41 @@ export class GameEngine {
         }
         break
       }
-      case 'parasite':
-      case 'berserker':
+      case 'parasite': {
+        // Leech Burst: 8/s off all strangers within 15u for 6s, kin (other parasites) immune, keeper gains half.
+        let ticks = 0
+        const leech = setInterval(() => {
+          ticks++
+          if (!player.alive || ticks > 6) {
+            clearInterval(leech)
+            return
+          }
+          let drainedTotal = 0
+          for (const e of this.players.values()) {
+            if (e.id === player.id || !e.alive || e.invisible || e.character === 'parasite') continue
+            if (Math.hypot(e.x - player.x, e.z - player.z) > 15) continue
+            const drain = Math.min(8, e.health - 1)
+            if (drain > 0) {
+              e.health -= drain
+              drainedTotal += drain
+            }
+          }
+          if (drainedTotal > 0) {
+            player.health = Math.min(CFG.MAX_HEALTH, player.health + Math.floor(drainedTotal / 2))
+          }
+          if (ticks >= 6) clearInterval(leech)
+        }, 1000)
         break
+      }
+      case 'berserker': {
+        // Red Rage: +50% dmg / +25% speed handled via lastAbilityAt window. Burnout crash -50 after 8s.
+        setTimeout(() => {
+          if (player.alive) {
+            this.applyDamage(player.id, 50, player.id)
+          }
+        }, 8000)
+        break
+      }
     }
   }
 
@@ -444,13 +481,14 @@ export class GameEngine {
     const oy = shooter.y + CFG.EYE_HEIGHT
     const oz = shooter.z
 
-    const targets = [...this.players.values()].filter(p => p.id !== shooter.id && p.alive)
+    const targets = [...this.players.values()].filter(p => p.id !== shooter.id && p.alive && !p.invisible)
     const hit = raycastPlayers(shooter.id, ox, oy, oz, dx, dy, dz, targets, this.map)
 
     if (hit) {
       const distMult = Math.max(0.25, 1 - hit.t / 160)
       const superMult = shooter.superActive ? CFG.SUPER_MULT : 1
-      const dmg = CFG.DMG_SINGLE * superMult * distMult
+      const rageMult = shooter.character === 'berserker' && Date.now() - shooter.lastAbilityAt < 8000 ? 1.5 : 1
+      const dmg = CFG.DMG_SINGLE * superMult * rageMult * distMult
       this.applyDamage(hit.id, dmg, shooter.id)
     }
   }
@@ -507,9 +545,12 @@ export class GameEngine {
         sound.playKill()
       }
 
-      // Jinx passive retaliation
+      // Jinx passive retaliation (60u range, fizzle if killer gone/dead)
       if (target.character === 'jinx' && shooter && shooter.alive && shooter.id !== target.id) {
-        this.applyDamage(shooter.id, 80, target.id)
+        const dist = Math.hypot(shooter.x - target.x, shooter.z - target.z)
+        if (dist <= 60) {
+          this.applyDamage(shooter.id, 80, target.id)
+        }
       }
 
       if (this.host) {
@@ -527,9 +568,11 @@ export class GameEngine {
     // Tick bots if in solo mode
     if (this.mode === 'solo') {
       const bots = [...this.players.values()].filter(p => p.isBot)
-      const targets = [...this.players.values()].map(p => ({
-        id: p.id, x: p.x, y: p.y, z: p.z, alive: p.alive
-      }))
+      const targets = [...this.players.values()]
+        .filter(p => p.alive && !p.invisible)
+        .map(p => ({
+          id: p.id, x: p.x, y: p.y, z: p.z, alive: p.alive
+        }))
       tickBots(bots, targets, this.map, this.nearbyBoxes, dt, (bot, target) => {
         const dx = target.x - bot.x
         const dy = (target.y + 1.2) - (bot.y + 1.2)
@@ -540,7 +583,8 @@ export class GameEngine {
           this.scene.spawnProjectile(bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, false)
           const hit = raycastPlayers(bot.id, bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, targets, this.map)
           if (hit) {
-            this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5, bot.id)
+            const rageMult = bot.character === 'berserker' && Date.now() - bot.lastAbilityAt < 8000 ? 1.5 : 1
+            this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5 * rageMult, bot.id)
           }
         }
       })
@@ -680,6 +724,13 @@ export class GameEngine {
       if (this.localPlayer.superActive) {
         speed *= 2.0
       }
+      const rageNow = Date.now()
+      if (this.localPlayer.character === 'denja' && rageNow - this.localPlayer.lastAbilityAt < 8000) {
+        speed *= 2.0
+      }
+      if (this.localPlayer.character === 'berserker' && rageNow - this.localPlayer.lastAbilityAt < 8000) {
+        speed *= 1.25
+      }
 
       if (len > 0) {
         mx = (mx / len) * speed * dt
@@ -818,6 +869,13 @@ export class GameEngine {
         if (p.superActive) {
           speed *= 2.0
         }
+        const rn = Date.now()
+        if (p.character === 'denja' && rn - p.lastAbilityAt < 8000) {
+          speed *= 2.0
+        }
+        if (p.character === 'berserker' && rn - p.lastAbilityAt < 8000) {
+          speed *= 1.25
+        }
         mx = (mx / len) * speed * msg.dt
         mz = (mz / len) * speed * msg.dt
         const col = resolveCollision(p.x + mx, p.y, p.z + mz, this.map, this.nearbyBoxes)
@@ -826,6 +884,9 @@ export class GameEngine {
       }
     } else if (msg.type === 'shoot' && fromId && this.players.has(fromId)) {
       const shooter = this.players.get(fromId)!
+      if (!shooter.alive || shooter.invisible) return
+      if (shooter.health <= CFG.SHOT_COST_SINGLE) return
+      shooter.health -= CFG.SHOT_COST_SINGLE
       this.processShot(shooter)
       const yaw = shooter.yaw, pitch = shooter.pitch
       const dx = msg.dx ?? (-Math.cos(pitch) * Math.sin(yaw))
@@ -882,21 +943,22 @@ export class GameEngine {
       }
     } else if (msg.type === 'super' && fromId && this.players.has(fromId)) {
       const p = this.players.get(fromId)!
-      if (p.alive && !p.superActive && p.health >= CFG.SUPER_COST + 1) {
+      if (p.alive && !p.superActive && !p.invisible && p.health >= CFG.SUPER_COST + 1) {
         p.health -= CFG.SUPER_COST
         p.superActive = true
         p.superEnd = Date.now() + CFG.SUPER_DURATION
       }
     } else if (msg.type === 'shield' && fromId && this.players.has(fromId)) {
       const p = this.players.get(fromId)!
-      if (p.alive && !p.shieldActive && !p.superActive && p.health >= CFG.SHIELD_COST + 1) {
+      if (p.alive && !p.shieldActive && !p.superActive && !p.invisible && p.health >= CFG.SHIELD_COST + 1) {
         p.health -= CFG.SHIELD_COST
         p.shieldActive = true
         p.shieldEnd = Date.now() + CFG.SHIELD_DURATION
       }
     } else if (msg.type === 'classAbility' && fromId && this.players.has(fromId)) {
       const p = this.players.get(fromId)!
-      if (p.alive && !p.superActive) {
+      if (p.alive && !p.superActive && !p.invisible) {
+        p.lastAbilityAt = Date.now()
         this.applyAbility(p)
       }
     }

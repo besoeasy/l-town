@@ -73,7 +73,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: 60000,
     color: '#00f0ff',
     badge: '⚡',
-    desc: 'Swaps positions instantly with a random alive enemy.',
+    desc: 'Swaps positions with a random alive enemy within 120 units. Fizzles on no target.',
     lore: 'Escape tool developed for orbital cave-ins and freight ambushes.'
   },
   chumantr: {
@@ -84,7 +84,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: 30000,
     color: '#a855f7',
     badge: '👻',
-    desc: 'Vanishes from sight and sensors for 10s. Cannot shoot while cloaked.',
+    desc: 'Full ghost for 10s: move only, no shoot or abilities.',
     lore: 'Survey sneak algorithm designed by cult ghosts for hostile surface scans.'
   },
   denja: {
@@ -139,7 +139,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: 25000,
     color: '#eab308',
     badge: '🌀',
-    desc: 'Rips 30 Hull from the nearest enemy within 40 units.',
+    desc: 'Rips 30 Hull off nearest enemy in 40u, keeps 15. Fizzles on no target.',
     lore: 'Adapted from magnetic slag extractors used in deep core mining.'
   },
   jinx: {
@@ -150,7 +150,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: -1,
     color: '#ec4899',
     badge: '💀',
-    desc: 'Passive: Upon destruction, fires a dead-man overload hitting killer for 80 Hull.',
+    desc: 'Passive: killer within 60u takes 80 Hull on your death.',
     lore: 'Black-box retaliation firmware with copied consciousness mind-loop.'
   },
   gambler: {
@@ -172,7 +172,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: 30000,
     color: '#84cc16',
     badge: '🧫',
-    desc: 'Drains 8 Hull/s from all enemies within 15 units for 6s.',
+    desc: 'Drains 8/s off strangers in 15u for 6s, keeps half. Parasite kin immune.',
     lore: 'Ecological swarm leech that consumes alien nanite alloys on contact.'
   },
   berserker: {
@@ -183,7 +183,7 @@ export const CORE_DETAILS: Record<CoreId, CoreInfo> = {
     cooldown: 35000,
     color: '#ef4444',
     badge: '🔴',
-    desc: 'Overclocks nanite combustion: +50% damage and +25% speed for 8s.',
+    desc: '+50% damage and +25% speed 8s, then burnout -50 Hull.',
     lore: 'Chemical overclock for chassis while pilot neural link stays cool.'
   },
 }
