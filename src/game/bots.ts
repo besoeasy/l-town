@@ -1,5 +1,6 @@
 import { CFG, type CoreId, CORE_IDS } from './config'
 import type { MapData } from './map'
+import { groundHeight } from './map'
 import type { PlayerState } from '../net/types'
 import { resolveCollision } from './physics'
 
@@ -106,5 +107,8 @@ export function tickBots(
       bot.x = col.x
       bot.z = col.z
     }
+
+    // Follow the rolling terrain
+    bot.y = groundHeight(bot.x, bot.z, map.seed) + 1.6
   }
 }

@@ -1,8 +1,62 @@
 import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
 import type { MapData, Box } from './map'
+import { groundHeight } from './map'
 import type { PlayerState } from '../net/types'
 import { CFG, CORE_DETAILS } from './config'
+
+/**
+ * Fresnel kinetic-shield dome (cosmetic). View-dependent rim glow with a
+ * slow energy pulse, subtle vertex wobble, and a hit-flash channel.
+ * Driven per-frame via uniforms uTime / uFlash / uOpacity.
+ */
+function makeShieldDomeMaterial(hex: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: {
+      uColor: { value: new THREE.Color(hex) },
+      uTime: { value: 0 },
+      uFlash: { value: 0 },
+      uOpacity: { value: 1 }
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying vec3 vPos;
+      uniform float uTime;
+      void main() {
+        vPos = position;
+        vec3 p = position + normal * (sin(uTime * 3.0 + position.y * 4.0 + position.x * 3.0) * 0.02);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying vec3 vPos;
+      uniform vec3 uColor;
+      uniform float uTime;
+      uniform float uFlash;
+      uniform float uOpacity;
+      void main() {
+        float fres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 2.0);
+        float bands = 0.5 + 0.5 * sin(vPos.y * 14.0 - uTime * 4.0);
+        float pulse = 0.75 + 0.25 * sin(uTime * 2.2);
+        vec3 col = uColor * (0.25 + fres * 1.6 * pulse + bands * 0.12 + uFlash * 1.5);
+        float alpha = (0.06 + fres * 0.55 + bands * 0.05 + uFlash * 0.4) * uOpacity;
+        gl_FragColor = vec4(col, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `
+  })
+}
 
 export class SceneRenderer {
   public scene: THREE.Scene
@@ -33,6 +87,13 @@ export class SceneRenderer {
   private readonly thumbClosedY = 0.4
   private readonly morphDim = new THREE.Color(0x1e4a52)
   private firstPersonShield!: THREE.Group
+  // Kinetic shield FX state (cosmetic): fade in/out, pulse clock, hit flash
+  private fpShieldDomeMat!: THREE.ShaderMaterial
+  private fpShieldRingMat!: THREE.MeshBasicMaterial
+  private fpShieldFade = 0
+  private fpShieldTarget = 0
+  private fpShieldFlash = 0
+  private shieldTime = 0
   private projectiles: { mesh: THREE.Group; vel: THREE.Vector3; dist: number; maxDist: number }[] = []
   private sparks: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number }[] = []
 
@@ -194,28 +255,22 @@ export class SceneRenderer {
     this.firstPersonShield = new THREE.Group()
     this.firstPersonShield.position.set(0, 0, -0.42)
 
-    // Glowing cyan boundary ring
+    // Glowing cyan boundary ring (pulsed in render())
     const fpRingGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 36, Math.PI * 1.6)
-    const fpRingMat = new THREE.MeshBasicMaterial({
+    this.fpShieldRingMat = new THREE.MeshBasicMaterial({
       color: 0x00f0ff,
       transparent: true,
       opacity: 0.45,
       blending: THREE.AdditiveBlending
     })
-    const fpRing = new THREE.Mesh(fpRingGeo, fpRingMat)
+    const fpRing = new THREE.Mesh(fpRingGeo, this.fpShieldRingMat)
     fpRing.rotation.z = Math.PI * 0.7
     this.firstPersonShield.add(fpRing)
 
-    // Translucent hexagonal kinetic lattice
-    const fpHexGeo = new THREE.IcosahedronGeometry(0.48, 1)
-    const fpHexMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.35
-    })
-    const fpHex = new THREE.Mesh(fpHexGeo, fpHexMat)
-    this.firstPersonShield.add(fpHex)
+    // Fresnel kinetic dome (replaces the flat wireframe lattice)
+    this.fpShieldDomeMat = makeShieldDomeMaterial(0x38bdf8)
+    const fpDome = new THREE.Mesh(new THREE.SphereGeometry(0.48, 32, 24), this.fpShieldDomeMat)
+    this.firstPersonShield.add(fpDome)
 
     this.firstPersonShield.visible = false
     this.camera.add(this.firstPersonShield)
@@ -320,31 +375,41 @@ export class SceneRenderer {
   buildMapGeometry(map: MapData) {
     const SIZE = map.floor.w
 
-    // 1. Biome Ground Plane (Vertex-colored: rich green grass on Terra side, warm desert sand on Barren side)
-    const gGeo = new THREE.PlaneGeometry(SIZE + 80, SIZE + 80, 120, 120)
+    // 1. Biome Ground Plane (Vertex-colored + rolling terrain displacement;
+    //    rotation baked in so vertices are already world-aligned XZ)
+    const gGeo = new THREE.PlaneGeometry(SIZE + 80, SIZE + 80, 150, 150)
+    gGeo.rotateX(-Math.PI / 2)
     const gColors: number[] = []
     const pos = gGeo.attributes.position
     for (let i = 0; i < pos.count; i++) {
-      const vx = pos.getX(i)
-      const vy = pos.getY(i)
-      const n = (Math.sin(vx * 0.06 + vy * 0.11) * 0.5 +
-                 Math.sin(vx * 0.17 - vy * 0.09) * 0.25 +
-                 Math.sin(vx * 0.04 + vy * 0.04) * 0.14) * 0.042
-      const t = Math.max(0, Math.min(1, (vx + 100) / 200))
+      const wx = pos.getX(i)
+      const wz = pos.getZ(i)
+      const gh = groundHeight(wx, wz, map.seed)
+      pos.setY(i, gh)
+      const n = (Math.sin(wx * 0.06 + wz * 0.11) * 0.5 +
+                 Math.sin(wx * 0.17 - wz * 0.09) * 0.25 +
+                 Math.sin(wx * 0.04 + wz * 0.04) * 0.14) * 0.042
+      const t = Math.max(0, Math.min(1, (wx + 100) / 200))
       // Terra (+x): vibrant grass green
       const tr = 0.28 + n, tg = 0.52 + n * 0.6, tb = 0.20 + n * 0.5
       // Barren (-x): warm sandstone
       const br = 0.70 + n, bg = 0.60 + n * 0.4, bb = 0.38 + n * 0.3
-      gColors.push(tr * t + br * (1 - t), tg * t + bg * (1 - t), tb * t + bb * (1 - t))
+      // Rocky tint on hilltops, darker soil in hollows
+      const rock = Math.max(0, Math.min(1, (gh - 1.2) / 2))
+      const shade = 1 + Math.max(-0.12, Math.min(0.06, gh * -0.04))
+      const r = (tr * t + br * (1 - t)) * (1 - rock * 0.25) * shade + rock * 0.18
+      const g = (tg * t + bg * (1 - t)) * (1 - rock * 0.28) * shade + rock * 0.16
+      const b = (tb * t + bb * (1 - t)) * (1 - rock * 0.25) * shade + rock * 0.15
+      gColors.push(r, g, b)
     }
     gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gColors, 3))
+    gGeo.computeVertexNormals()
     const groundMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.92,
       metalness: 0.0
     })
     const ground = new THREE.Mesh(gGeo, groundMat)
-    ground.rotation.x = -Math.PI / 2
     ground.receiveShadow = true
     this.scene.add(ground)
 
@@ -536,14 +601,8 @@ export class SceneRenderer {
     shieldGroup.position.y = 1.1
     shieldGroup.visible = false
 
-    const innerShieldMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
-      transparent: true,
-      opacity: 0.3,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide
-    })
-    const innerShield = new THREE.Mesh(new THREE.SphereGeometry(1.35, 24, 18), innerShieldMat)
+    const innerShieldMat = makeShieldDomeMaterial(0x00f0ff)
+    const innerShield = new THREE.Mesh(new THREE.SphereGeometry(1.35, 32, 24), innerShieldMat)
     shieldGroup.add(innerShield)
 
     const outerShieldMat = new THREE.MeshBasicMaterial({
@@ -617,9 +676,25 @@ export class SceneRenderer {
   }
 
   setFirstPersonShield(active: boolean) {
-    if (this.firstPersonShield) {
-      this.firstPersonShield.visible = active
-    }
+    // Fade is animated in render(); here we only set the target
+    this.fpShieldTarget = active ? 1 : 0
+  }
+
+  /** Hit flash on the first-person dome (called when our shield blocks damage). Cosmetic. */
+  flashFirstPersonShield() {
+    this.fpShieldFlash = 1
+  }
+
+  /** Hit flash on a third-person shield dome (called when their shield blocks damage). Cosmetic. */
+  flashThirdPersonShield(id: number) {
+    const grp = this.playerMeshes.get(id)
+    if (!grp) return
+    grp.traverse(o => {
+      const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined
+      if (m && (m as any).uniforms && (m as any).uniforms.uFlash) {
+        ;(m as any).uniforms.uFlash.value = 1
+      }
+    })
   }
 
   spawnProjectile(
@@ -741,9 +816,24 @@ export class SceneRenderer {
       this.applyBlasterMorph(this.blasterMorph)
     }
 
-    // First person shield
+    // First person shield: smooth fade, energy pulse, hit-flash decay
     this.setFirstPersonShield(shieldActive)
-    if (this.firstPersonShield.visible) {
+    this.shieldTime += dt
+    this.fpShieldFlash = Math.max(0, this.fpShieldFlash - dt * 3)
+    this.fpShieldFade += (this.fpShieldTarget - this.fpShieldFade) * Math.min(1, dt * 6)
+    if (Math.abs(this.fpShieldTarget - this.fpShieldFade) < 0.01) {
+      this.fpShieldFade = this.fpShieldTarget
+    }
+    const fpVisible = this.fpShieldFade > 0.02
+    this.firstPersonShield.visible = fpVisible
+    if (fpVisible) {
+      this.fpShieldDomeMat.uniforms.uTime.value = this.shieldTime
+      this.fpShieldDomeMat.uniforms.uFlash.value = this.fpShieldFlash
+      this.fpShieldDomeMat.uniforms.uOpacity.value = this.fpShieldFade
+      this.fpShieldRingMat.opacity =
+        0.45 * this.fpShieldFade * (0.8 + 0.2 * Math.sin(this.shieldTime * 2.2))
+      const s = 0.92 + 0.08 * this.fpShieldFade
+      this.firstPersonShield.scale.setScalar(s)
       this.firstPersonShield.rotation.z += dt * 0.8
     }
 
@@ -771,11 +861,18 @@ export class SceneRenderer {
       }
     }
 
-    // Animate 3rd person shields
+    // Animate 3rd person shields: spin, energy pulse, hit-flash decay
     for (const grp of this.playerMeshes.values()) {
       const sh = grp.getObjectByName('shield')
       if (sh && sh.visible) {
         sh.rotation.y += dt * 1.5
+        sh.traverse(o => {
+          const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined
+          if (m && (m as any).uniforms && (m as any).uniforms.uTime) {
+            ;(m as any).uniforms.uTime.value = this.shieldTime
+            ;(m as any).uniforms.uFlash.value = Math.max(0, (m as any).uniforms.uFlash.value - dt * 3)
+          }
+        })
       }
     }
 

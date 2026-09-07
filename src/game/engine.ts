@@ -1,5 +1,5 @@
 import { CFG, type CoreId, CORE_DETAILS } from './config'
-import { generateMap, type MapData } from './map'
+import { generateMap, groundHeight, type MapData } from './map'
 import { createBoxGrid, resolveCollision, raycastPlayers } from './physics'
 import { spawnBots, tickBots } from './bots'
 import { sound } from './audio'
@@ -517,7 +517,12 @@ export class GameEngine {
     const target = this.players.get(targetId)
     if (!target || !target.alive) return
 
-    if (target.shieldActive && Date.now() < target.shieldEnd) return
+    if (target.shieldActive && Date.now() < target.shieldEnd) {
+      // Kinetic block: flash the dome so the save reads visually (no damage, no sound)
+      if (target.id === this.localPlayer.id) this.scene.flashFirstPersonShield()
+      else this.scene.flashThirdPersonShield(target.id)
+      return
+    }
     if (target.character === 'tank' && Date.now() - target.lastAbilityAt < 8000) {
       dmg *= 0.5
     }
@@ -713,7 +718,7 @@ export class GameEngine {
   }
 
   private isOnGround(p: PlayerState): boolean {
-    if (p.y <= 1.65) return true
+    if (p.y <= groundHeight(p.x, p.z, this.map.seed) + 1.65) return true
     for (const box of this.nearbyBoxes(p.x, p.z)) {
       const bTop = box.y + box.h / 2
       const hw = box.w / 2 + CFG.PLAYER_RADIUS
@@ -798,8 +803,9 @@ export class GameEngine {
         }
       }
 
-      if (this.localPlayer.y <= 1.6) {
-        this.localPlayer.y = 1.6
+      const groundBase = groundHeight(this.localPlayer.x, this.localPlayer.z, this.map.seed) + 1.6
+      if (this.localPlayer.y <= groundBase) {
+        this.localPlayer.y = groundBase
         this.vy = 0
       }
 

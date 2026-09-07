@@ -1,5 +1,6 @@
 import { CFG } from './config'
 import type { Box, MapData } from './map'
+import { groundHeight } from './map'
 
 export function createBoxGrid(map: MapData, BOX_CELL = 20) {
   const grid = new Map<number, Box[]>()
@@ -140,6 +141,18 @@ export function raycastPlayers(
     for (const box of map.boxes) {
       const bt = rayVsBox(ox, oy, oz, dx, dy, dz, box)
       if (bt < best.t - 0.1) {
+        best = null
+        break
+      }
+    }
+  }
+
+  // Rolling terrain blocks hitscan too: march the ray until the player hit
+  if (best) {
+    for (let t = 2; t < best.t; t += 2) {
+      const px = ox + dx * t
+      const pz = oz + dz * t
+      if (oy + dy * t < groundHeight(px, pz, map.seed) + 0.2) {
         best = null
         break
       }

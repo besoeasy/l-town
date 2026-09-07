@@ -22,6 +22,33 @@ export interface MapData {
   boxes: Box[]
   spawns: Spawn[]
   pois: any[]
+  seed: number
+}
+
+/** Deterministic 0..1 hash for seed-derived terrain phases. */
+function hash01(seed: number, i: number): number {
+  const h = Math.sin(seed * 127.1 + i * 311.7) * 43758.5453
+  return h - Math.floor(h)
+}
+
+/**
+ * Rolling terrain height. Dead flat inside the central arena (r < 115, where
+ * all handcrafted structures, roads and ponds sit), ramping up to gentle
+ * hills (max ~3.2u, slopes ~0.06) across the outer scatter zone.
+ * Pure function of world (x, z) + seed — shared by mesh, physics and spawns.
+ */
+export function groundHeight(x: number, z: number, seed: number): number {
+  const d = Math.hypot(x, z)
+  if (d < 115) return 0
+  const t = Math.min(1, (d - 115) / 70)
+  const s = t * t * (3 - 2 * t)
+  const p1 = hash01(seed, 1) * Math.PI * 2
+  const p2 = hash01(seed, 2) * Math.PI * 2
+  const p3 = hash01(seed, 3) * Math.PI * 2
+  const h =
+    Math.sin(x * 0.018 + p1) * Math.cos(z * 0.021 + p2) * 2.0 +
+    Math.sin((x + z) * 0.009 + p3) * 1.2
+  return h * s
 }
 
 export function generateMap(seed: number): MapData {
@@ -41,13 +68,16 @@ export function generateMap(seed: number): MapData {
     return { h: 2.5 + rng() * 2.5, w: 2 + rng() * 6 }
   }
 
-  // Outer perimeter boundary walls
+  const groundAt = (x: number, z: number) => groundHeight(x, z, seed)
+  const spawnY = (x: number, z: number) => groundAt(x, z) + 1.6
+
+  // Outer perimeter boundary walls (extended down so hills never expose a gap)
   const wH = 12
   const wT = 2
-  box(0, wH / 2, -HALF, SIZE, wH, wT, 'wall', 'neutral')
-  box(0, wH / 2, HALF, SIZE, wH, wT, 'wall', 'neutral')
-  box(-HALF, wH / 2, 0, wT, wH, SIZE, 'wall', 'neutral')
-  box(HALF, wH / 2, 0, wT, wH, SIZE, 'wall', 'neutral')
+  box(0, 3, -HALF, SIZE, wH + 6, wT, 'wall', 'neutral')
+  box(0, 3, HALF, SIZE, wH + 6, wT, 'wall', 'neutral')
+  box(-HALF, 3, 0, wT, wH + 6, SIZE, 'wall', 'neutral')
+  box(HALF, 3, 0, wT, wH + 6, SIZE, 'wall', 'neutral')
 
   // 5-Floor Central Meridian Hub / Office Building
   const FLOORS = 5
@@ -169,7 +199,9 @@ export function generateMap(seed: number): MapData {
     if (dc < 195 && rng() < 0.68) continue
     const biome = x > 5 ? 'terra' : x < -5 ? 'barren' : 'neutral'
     const { h, w } = tieredCover(rng())
-    box(x, h / 2, z, w, h, w * (0.5 + rng() * 1.0), 'cover', biome)
+    // Bury the base 1.5u so slope never floats a slab; gameplay top stays at h
+    const gh = groundAt(x, z)
+    box(x, gh + h / 2 - 0.75, z, w, h + 1.5, w * (0.5 + rng() * 1.0), 'cover', biome)
   }
   for (let i = 0; i < 90; i++) {
     const x = (rng() - 0.5) * (SIZE - 40)
@@ -177,7 +209,8 @@ export function generateMap(seed: number): MapData {
     if (Math.sqrt(x * x + z * z) < 84) continue
     const biome = x > 0 ? 'terra' : 'barren'
     const h = 10 + rng() * 22, w = 1.5 + rng() * 2.5
-    box(x, h / 2, z, w, h, w, 'pillar', biome)
+    const gh = groundAt(x, z)
+    box(x, gh + h / 2 - 2, z, w, h + 4, w, 'pillar', biome)
   }
   for (let i = 0; i < 75; i++) {
     const x = (rng() - 0.5) * (SIZE - 50)
@@ -185,15 +218,22 @@ export function generateMap(seed: number): MapData {
     if (Math.sqrt(x * x + z * z) < 75) continue
     const biome = x > 0 ? 'terra' : 'barren'
     const elev = 4 + rng() * 7, pw = 7 + rng() * 14, pd = 7 + rng() * 14
-    box(x, elev + 0.5, z, pw, 1.2, pd, 'platform', biome)
-    box(x, elev / 2, z, 1.2, elev, 1.2, 'pillar', biome)
+    const gh = groundAt(x, z)
+    box(x, gh + elev + 0.5, z, pw, 1.2, pd, 'platform', biome)
+    box(x, gh + elev / 2 - 1, z, 1.2, elev + 2, 1.2, 'pillar', biome)
   }
 
-  // Hideouts
+  // Hideouts (each founded on the terrain height at its center; ground-based
+  // walls extend 1.5u underground so slopes never float them)
   function buildHideout(hx: number, hz: number, biome: string) {
+    const ghH = groundAt(hx, hz)
     const bw = 10 + rng() * 12, bd = 10 + rng() * 12, wh = 8 + rng() * 5, wt = 1.5, dw = 2.5, dh = 5.0
     function hbox(dx: number, dy: number, dz: number, w: number, h: number, d: number) {
-      boxes.push({ x: hx + dx, y: dy, z: hz + dz, w, h, d, type: 'rand_building', biome })
+      if (dy - h / 2 <= 0.6) {
+        boxes.push({ x: hx + dx, y: dy + ghH - 0.75, z: hz + dz, w, h: h + 1.5, d, type: 'rand_building', biome })
+      } else {
+        boxes.push({ x: hx + dx, y: dy + ghH, z: hz + dz, w, h, d, type: 'rand_building', biome })
+      }
     }
     function wallFace(dir: string, facePos: number, span: number) {
       const dox = (rng() - 0.5) * (span - dw - 2)
@@ -230,9 +270,9 @@ export function generateMap(seed: number): MapData {
     wallFace('z', (bd + wt / 2), bw + wt)
     wallFace('x', -(bw + wt / 2), bd)
     wallFace('x', (bw + wt / 2), bd)
-    if (rng() < 0.6) boxes.push({ x: hx, y: wh + 0.5, z: hz, w: (bw + wt) * 2, h: 1, d: (bd + wt) * 2, type: 'platform', biome })
-    if (rng() < 0.5) boxes.push({ x: hx, y: 1, z: hz, w: 2 + rng() * 3, h: 2, d: 2 + rng() * 3, type: 'cover', biome })
-    spawns.push({ x: hx, y: 1.6, z: hz })
+    if (rng() < 0.6) boxes.push({ x: hx, y: wh + 0.5 + ghH, z: hz, w: (bw + wt) * 2, h: 1, d: (bd + wt) * 2, type: 'platform', biome })
+    if (rng() < 0.5) boxes.push({ x: hx, y: 1 + ghH - 0.75, z: hz, w: 2 + rng() * 3, h: 3.5, d: 2 + rng() * 3, type: 'cover', biome })
+    spawns.push({ x: hx, y: spawnY(hx, hz), z: hz })
   }
 
   const HIDEOUT_COUNT = 10 + Math.floor(rng() * 11)
@@ -248,7 +288,7 @@ export function generateMap(seed: number): MapData {
   const coverPool = boxes.filter(b => b.type === 'cover' || b.type === 'ruins')
   for (let i = 0; i < Math.min(30, coverPool.length); i++) {
     const b = coverPool[i]
-    spawns.push({ x: b.x + 3, y: 1.6, z: b.z + 3 })
+    spawns.push({ x: b.x + 3, y: spawnY(b.x + 3, b.z + 3), z: b.z + 3 })
   }
 
   // Canonical outpost & central plaza spawns (open daylight locations prioritized at front)
@@ -259,13 +299,14 @@ export function generateMap(seed: number): MapData {
     [360, 0], [-360, 0], [0, 360], [0, -360]
   ] as const
   for (const [x, z] of openAirSpawns) {
-    spawns.unshift({ x, y: 1.6, z })
+    spawns.unshift({ x, y: spawnY(x, z), z })
   }
 
   return {
     floor: { w: SIZE, d: SIZE },
     boxes,
     spawns,
-    pois: []
+    pois: [],
+    seed
   }
 }
