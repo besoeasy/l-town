@@ -1,5 +1,6 @@
 import { Peer, type DataConnection } from 'peerjs'
 import type { NetMessage, WelcomeMsg } from './types'
+import { getArenaSpawn } from '../game/engine'
 
 // Public PeerJS Cloud broker + Google/Twilio STUN + OpenRelay TURN
 export const PEERJS_CONFIG = {
@@ -62,11 +63,15 @@ export class PeerJSHost {
         this.peers.set(assignedPlayerId, conn)
         console.log(`[PeerJSHost] Peer ${assignedPlayerId} DataChannel OPEN. Total: ${this.peers.size}`)
 
+        const spawn = getArenaSpawn(assignedPlayerId)
         const welcome: WelcomeMsg = {
           type: 'welcome',
           playerId: assignedPlayerId,
           seed: this.seed,
-          hostId: 1
+          hostId: 1,
+          x: spawn.x,
+          y: spawn.y,
+          z: spawn.z
         }
         conn.send(welcome)
 

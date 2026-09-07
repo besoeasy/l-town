@@ -182,6 +182,11 @@ const cPercent = computed(() => {
           <span class="telem-label">ROOM</span>
           <span class="telem-val text-cyan">{{ roomCode }} {{ copiedToast ? '✓ COPIED' : '📋' }}</span>
         </div>
+        <div v-if="telemetry?.nearestPilot" class="telem-chip contact-chip" title="Nearest Pilot in Sector">
+          <span class="contact-beacon"></span>
+          <span class="telem-label">RADAR</span>
+          <span class="telem-val text-cyan">{{ telemetry.nearestPilot.name }} ({{ telemetry.nearestPilot.distance }}m)</span>
+        </div>
       </div>
 
       <div class="pilot-badge">
@@ -898,6 +903,28 @@ const cPercent = computed(() => {
   background: rgba(0, 240, 255, 0.3) !important;
   box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
   transform: translateY(-1px);
+}
+
+.contact-chip {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+.contact-beacon {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: beaconPulse 1.2s infinite;
+  margin-right: 2px;
+}
+
+@keyframes beaconPulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
 }
 
 @keyframes bannerGlow {

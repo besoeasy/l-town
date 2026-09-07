@@ -45,8 +45,10 @@ export interface InputMsg {
   yaw: number
   pitch: number
   dt: number
-  /** Authoritative client height (terrain + jumps); absent on old builds. */
+  /** Authoritative client coordinates */
+  x?: number
   y?: number
+  z?: number
 }
 
 export interface ShootMsg {
@@ -122,6 +124,9 @@ export interface WelcomeMsg {
   playerId: number
   seed: number
   hostId: number
+  x?: number
+  y?: number
+  z?: number
 }
 
 export interface JoinMsg {
@@ -191,6 +196,11 @@ export interface TelemetryData {
   botPlayers: number
   mode: 'solo' | 'host' | 'client'
   tickRate: number
+  nearestPilot?: {
+    name: string
+    distance: number
+    character: CoreId
+  }
 }
 
 export interface MatchResults {

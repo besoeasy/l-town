@@ -58,6 +58,45 @@ function makeShieldDomeMaterial(hex: number): THREE.ShaderMaterial {
   })
 }
 
+function createNameplateTexture(name: string, isBot = false): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    // Semi-transparent dark pill background
+    ctx.fillStyle = isBot ? 'rgba(15, 23, 42, 0.75)' : 'rgba(8, 14, 26, 0.90)'
+    ctx.beginPath()
+    if (ctx.roundRect) {
+      ctx.roundRect(8, 8, 240, 48, 10)
+    } else {
+      ctx.rect(8, 8, 240, 48)
+    }
+    ctx.fill()
+
+    // Cyber border
+    ctx.lineWidth = 3
+    ctx.strokeStyle = isBot ? 'rgba(100, 116, 139, 0.8)' : '#00f0ff'
+    ctx.beginPath()
+    if (ctx.roundRect) {
+      ctx.roundRect(8, 8, 240, 48, 10)
+    } else {
+      ctx.rect(8, 8, 240, 48)
+    }
+    ctx.stroke()
+
+    // Callsign text
+    ctx.font = 'bold 22px monospace'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = isBot ? '#94a3b8' : '#38bdf8'
+    ctx.fillText(name.slice(0, 14).toUpperCase(), 128, 32)
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  return texture
+}
+
 export class SceneRenderer {
   public scene: THREE.Scene
   public camera: THREE.PerspectiveCamera
@@ -524,6 +563,7 @@ export class SceneRenderer {
       let group = this.playerMeshes.get(p.id)
       if (!group) {
         group = this.createPlayerMesh(p)
+        group.userData.renderedName = p.name
         this.scene.add(group)
         this.playerMeshes.set(p.id, group)
       }
@@ -532,6 +572,24 @@ export class SceneRenderer {
       if (group.visible) {
         group.position.set(p.x, p.y, p.z)
         group.rotation.y = p.yaw
+
+        // Rotate tactical beacon diamond
+        const beacon = group.getObjectByName('beacon') as THREE.Mesh
+        if (beacon) {
+          beacon.rotation.y += 0.04
+          beacon.rotation.x += 0.02
+        }
+
+        // Dynamically refresh nameplate if callsign changed
+        if (group.userData.renderedName !== p.name) {
+          group.userData.renderedName = p.name
+          const np = group.getObjectByName('nameplate') as THREE.Sprite
+          if (np && np.material) {
+            np.material.map?.dispose()
+            np.material.map = createNameplateTexture(p.name, p.isBot)
+            np.material.needsUpdate = true
+          }
+        }
 
         const shieldMesh = group.getObjectByName('shield') as THREE.Mesh
         if (shieldMesh) {
@@ -594,6 +652,31 @@ export class SceneRenderer {
     )
     gun.position.set(0.36, 1.05, -0.45)
     group.add(gun)
+
+    // Tactical floating nameplate (always facing camera)
+    const nameplateMat = new THREE.SpriteMaterial({
+      map: createNameplateTexture(p.name, p.isBot),
+      transparent: true,
+      depthTest: false
+    })
+    const nameplate = new THREE.Sprite(nameplateMat)
+    nameplate.name = 'nameplate'
+    nameplate.scale.set(2.4, 0.6, 1)
+    nameplate.position.set(0, 2.45, 0)
+    group.add(nameplate)
+
+    // Holographic diamond beacon above player head
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: p.isBot ? 0x64748b : 0x00f0ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false
+    })
+    const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), beaconMat)
+    beacon.name = 'beacon'
+    beacon.position.set(0, 2.95, 0)
+    group.add(beacon)
 
     // High-fidelity Multi-layer Blueish Kinetic Shield
     const shieldGroup = new THREE.Group()
