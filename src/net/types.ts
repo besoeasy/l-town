@@ -45,6 +45,8 @@ export interface InputMsg {
   yaw: number
   pitch: number
   dt: number
+  /** Authoritative client height (terrain + jumps); absent on old builds. */
+  y?: number
 }
 
 export interface ShootMsg {

@@ -492,17 +492,19 @@ export class GameEngine {
     }
   }
 
-  private processShot(shooter: PlayerState) {
+  private processShot(shooter: PlayerState, ox?: number, oy?: number, oz?: number, dx?: number, dy?: number, dz?: number) {
     const yaw = shooter.yaw, pitch = shooter.pitch
-    const dx = -Math.cos(pitch) * Math.sin(yaw)
-    const dy = Math.sin(pitch)
-    const dz = -Math.cos(pitch) * Math.cos(yaw)
-    const ox = shooter.x
-    const oy = shooter.y + CFG.EYE_HEIGHT
-    const oz = shooter.z
+    // Explicit origin/dir (sent by remote clients from their true eye) wins;
+    // otherwise derive from shooter state (local/solo/host play).
+    const _dx = dx ?? -Math.cos(pitch) * Math.sin(yaw)
+    const _dy = dy ?? Math.sin(pitch)
+    const _dz = dz ?? -Math.cos(pitch) * Math.cos(yaw)
+    const _ox = ox ?? shooter.x
+    const _oy = oy ?? shooter.y + CFG.EYE_HEIGHT
+    const _oz = oz ?? shooter.z
 
     const targets = [...this.players.values()].filter(p => p.id !== shooter.id && p.alive && !p.invisible)
-    const hit = raycastPlayers(shooter.id, ox, oy, oz, dx, dy, dz, targets, this.map)
+    const hit = raycastPlayers(shooter.id, _ox, _oy, _oz, _dx, _dy, _dz, targets, this.map)
 
     if (hit) {
       const distMult = Math.max(0.25, 1 - hit.t / 160)
@@ -531,18 +533,25 @@ export class GameEngine {
     target.respawnAt = 0
 
     const shooter = this.players.get(shooterId)
-    if (target.id === 1) {
+    const hitConfirm = {
+      type: 'hitConfirm' as const,
+      amount: Math.round(dmg),
+      targetName: target.name,
+      killed: target.health <= 0
+    }
+    if (target.id === this.localPlayer.id) {
       sound.playHit()
       this.callbacks.onHit(Math.round(dmg))
+    } else if (this.host) {
+      // Remote victim gets their red flash + damage number
+      this.host.sendTo(target.id, { type: 'hit', amount: Math.round(dmg) })
     }
-    if (shooter && shooter.id === 1) {
+    if (shooter && shooter.id === this.localPlayer.id) {
       sound.playHitConfirm(target.health <= 0)
-      this.callbacks.onHitConfirm({
-        type: 'hitConfirm',
-        amount: Math.round(dmg),
-        targetName: target.name,
-        killed: target.health <= 0
-      })
+      this.callbacks.onHitConfirm(hitConfirm)
+    } else if (shooter && this.host) {
+      // Remote shooter gets their hit marker
+      this.host.sendTo(shooter.id, hitConfirm)
     }
 
     if (target.health <= 0) {
@@ -832,6 +841,7 @@ export class GameEngine {
           run: isRunning,
           yaw: this.localPlayer.yaw,
           pitch: this.localPlayer.pitch,
+          y: this.localPlayer.y,
           dt
         })
       }
@@ -905,6 +915,8 @@ export class GameEngine {
       const p = this.players.get(fromId)!
       p.yaw = msg.yaw
       p.pitch = msg.pitch
+      // Remote height comes from the client (terrain + jumps); host only integrates XZ
+      if (typeof msg.y === 'number' && isFinite(msg.y)) p.y = msg.y
       // Crouched remotes are stationary until they send uncrouch
       if (p.crouching) return
       let mx = 0, mz = 0
@@ -936,7 +948,7 @@ export class GameEngine {
       if (!shooter.alive || shooter.invisible) return
       if (shooter.health <= CFG.SHOT_COST_SINGLE) return
       shooter.health -= CFG.SHOT_COST_SINGLE
-      this.processShot(shooter)
+      // Hitscan from the shooter's true eye, not our (possibly stale) copy
       const yaw = shooter.yaw, pitch = shooter.pitch
       const dx = msg.dx ?? (-Math.cos(pitch) * Math.sin(yaw))
       const dy = msg.dy ?? Math.sin(pitch)
@@ -944,6 +956,7 @@ export class GameEngine {
       const ox = msg.ox ?? shooter.x
       const oy = msg.oy ?? (shooter.y + CFG.EYE_HEIGHT - 0.1)
       const oz = msg.oz ?? shooter.z
+      this.processShot(shooter, ox, oy, oz, dx, dy, dz)
 
       // Host spawns projectile so host can see remote shot
       this.scene.spawnProjectile(ox, oy, oz, dx, dy, dz, shooter.superActive)
