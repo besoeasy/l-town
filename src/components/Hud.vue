@@ -11,7 +11,17 @@ const props = defineProps<{
   hitConfirm: { show: boolean; amount: number; killed: boolean }
   telemetry?: TelemetryData
   p2pStatus?: string
+  roomCode?: string
 }>()
+
+const copiedToast = ref(false)
+const copyInviteLink = () => {
+  if (!props.roomCode) return
+  const url = `${window.location.origin}${window.location.pathname}#room=${props.roomCode}`
+  navigator.clipboard.writeText(url).catch(() => {})
+  copiedToast.value = true
+  setTimeout(() => { copiedToast.value = false }, 2000)
+}
 
 const currentTime = ref(Date.now())
 let timerRaf: number | null = null
@@ -167,6 +177,10 @@ const cPercent = computed(() => {
         <div v-if="p2pStatus" class="telem-chip">
           <span class="telem-label">LINK</span>
           <span class="telem-val text-white">{{ p2pStatus }}</span>
+        </div>
+        <div v-if="roomCode" class="telem-chip room-chip" @click="copyInviteLink" :title="'Click to copy invite link for Room ' + roomCode">
+          <span class="telem-label">ROOM</span>
+          <span class="telem-val text-cyan">{{ roomCode }} {{ copiedToast ? '✓ COPIED' : '📋' }}</span>
         </div>
       </div>
 
@@ -870,6 +884,20 @@ const cPercent = computed(() => {
   0% { opacity: 0.85; }
   50% { opacity: 1; box-shadow: inset 0 0 140px rgba(0, 240, 255, 0.55), inset 0 0 60px rgba(0, 240, 255, 0.35); }
   100% { opacity: 0.85; }
+}
+
+.room-chip {
+  cursor: pointer;
+  background: rgba(0, 240, 255, 0.15) !important;
+  border-color: rgba(0, 240, 255, 0.5) !important;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.room-chip:hover {
+  background: rgba(0, 240, 255, 0.3) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+  transform: translateY(-1px);
 }
 
 @keyframes bannerGlow {

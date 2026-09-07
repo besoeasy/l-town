@@ -8,20 +8,30 @@ const props = defineProps<{
   selectedCore: CoreId
   rooms: NostrRoom[]
   isPublishing: boolean
+  inviteRoomCode?: string
+  isConnecting?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:callsign', val: string): void
   (e: 'update:selectedCore', val: CoreId): void
   (e: 'startSolo'): void
+  (e: 'createPeerRoom'): void
+  (e: 'joinPeerRoom', code: string): void
   (e: 'createNostrRoom'): void
   (e: 'joinNostrRoom', room: NostrRoom): void
-  (e: 'hostLan'): void
-  (e: 'joinLan'): void
   (e: 'refreshRooms'): void
 }>()
 
 const activeTab = ref<'cores' | 'rooms' | 'controls'>('cores')
+const roomCodeInput = ref('')
+
+const handleJoinInput = () => {
+  const code = roomCodeInput.value.trim().toUpperCase()
+  if (code) {
+    emit('joinPeerRoom', code)
+  }
+}
 </script>
 
 <template>
@@ -56,6 +66,20 @@ const activeTab = ref<'cores' | 'rooms' | 'controls'>('cores')
             <span class="maker">{{ CORE_DETAILS[selectedCore].maker }}</span>
           </div>
         </div>
+      </div>
+
+      <!-- Direct Room Invitation Banner -->
+      <div v-if="inviteRoomCode" class="invite-banner">
+        <div class="invite-info">
+          <span class="invite-bolt">⚡</span>
+          <div class="invite-details">
+            <span class="invite-heading">INVITATION DETECTED</span>
+            <span class="invite-sub">Room Host Code: <strong>{{ inviteRoomCode }}</strong></span>
+          </div>
+        </div>
+        <button class="invite-join-btn" :disabled="isConnecting" @click="emit('joinPeerRoom', inviteRoomCode)">
+          {{ isConnecting ? 'CONNECTING P2P...' : 'CONNECT & PLAY NOW' }}
+        </button>
       </div>
 
       <!-- Navigation Tabs -->
@@ -168,20 +192,33 @@ const activeTab = ref<'cores' | 'rooms' | 'controls'>('cores')
         </div>
       </div>
 
-      <!-- Action Footer Buttons -->
+      <!-- Unified P2P Action Footer -->
       <footer class="lobby-footer">
         <button class="action-btn solo-btn" @click="emit('startSolo')">
-          LAUNCH SOLO TRIAL (OFFLINE BOTS)
+          SOLO TRIAL (BOTS)
         </button>
-        <button class="action-btn nostr-btn" :disabled="isPublishing" @click="emit('createNostrRoom')">
-          {{ isPublishing ? 'PUBLISHING...' : 'HOST NOSTR ROOM (P2P)' }}
+
+        <button class="action-btn host-btn" :disabled="isConnecting" @click="emit('createPeerRoom')">
+          ⚡ HOST MATCH (P2P)
         </button>
-        <button class="action-btn lan-btn" @click="emit('hostLan')">
-          HOST LAN MATCH
-        </button>
-        <button class="action-btn join-code-btn" @click="emit('joinLan')">
-          JOIN LAN (PASTE ADDRESS)
-        </button>
+
+        <div class="join-match-box">
+          <input
+            type="text"
+            v-model="roomCodeInput"
+            placeholder="ROOM CODE"
+            maxlength="8"
+            class="room-code-input"
+            @keyup.enter="handleJoinInput"
+          />
+          <button
+            class="action-btn join-match-btn"
+            :disabled="!roomCodeInput.trim() || isConnecting"
+            @click="handleJoinInput"
+          >
+            {{ isConnecting ? 'CONNECTING...' : 'JOIN MATCH' }}
+          </button>
+        </div>
       </footer>
     </div>
   </div>
@@ -585,29 +622,138 @@ kbd {
 }
 
 .solo-btn {
-  background: #00f0ff;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.host-btn {
+  background: linear-gradient(135deg, #00f0ff 0%, #3b82f6 100%);
   color: #080a10;
+  font-weight: 800;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
 }
 
-.nostr-btn {
-  background: #8b5cf6;
-  color: #fff;
+.join-match-box {
+  flex: 1.5;
+  display: flex;
+  gap: 8px;
 }
 
-.lan-btn {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.join-code-btn {
-  background: rgba(255, 255, 255, 0.1);
-  color: #00f0ff;
+.room-code-input {
+  flex: 1;
+  background: rgba(10, 14, 24, 0.9);
   border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 6px;
+  color: #00f0ff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0 12px;
 }
 
-.action-btn:hover {
+.room-code-input::placeholder {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.room-code-input:focus {
+  outline: none;
+  border-color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.join-match-btn {
+  background: #10b981;
+  color: #080a10;
+  font-weight: 800;
+  flex: 1;
+}
+
+.action-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   filter: brightness(1.15);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Invite Banner */
+.invite-banner {
+  margin: 0 0 16px 0;
+  background: linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, rgba(59, 130, 246, 0.2) 100%);
+  border: 1px solid rgba(0, 240, 255, 0.6);
+  border-radius: 8px;
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+  animation: bannerPulse 2s infinite ease-in-out;
+}
+
+@keyframes bannerPulse {
+  0%, 100% { border-color: rgba(0, 240, 255, 0.6); box-shadow: 0 0 15px rgba(0, 240, 255, 0.2); }
+  50% { border-color: rgba(0, 240, 255, 1); box-shadow: 0 0 25px rgba(0, 240, 255, 0.45); }
+}
+
+.invite-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.invite-bolt {
+  font-size: 24px;
+}
+
+.invite-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.invite-heading {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #00f0ff;
+  font-weight: 700;
+}
+
+.invite-sub {
+  font-size: 15px;
+  color: #fff;
+}
+
+.invite-sub strong {
+  color: #00f0ff;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 1px;
+}
+
+.invite-join-btn {
+  background: #00f0ff;
+  color: #080a10;
+  border: none;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+  transition: all 0.2s ease;
+}
+
+.invite-join-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  filter: brightness(1.2);
 }
 </style>

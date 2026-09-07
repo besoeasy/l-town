@@ -39,8 +39,8 @@ export class GameEngine {
   private keys: Record<string, boolean> = {}
   private scene: SceneRenderer
   private callbacks: GameCallbacks
-  private host: P2PHost | null = null
-  private client: P2PClient | null = null
+  private host: any = null
+  private client: any = null
   private tickInterval: any = null
   private pingInterval: any = null
   private frameCount = 0
@@ -102,7 +102,7 @@ export class GameEngine {
     this.setupInput(canvas)
   }
 
-  setHostNetwork(host: P2PHost) {
+  setHostNetwork(host: any) {
     this.host = host
     for (const [id] of host.peers) {
       if (!this.players.has(id)) {
@@ -111,7 +111,7 @@ export class GameEngine {
     }
   }
 
-  setClientNetwork(client: P2PClient) {
+  setClientNetwork(client: any) {
     this.client = client
     this.client.send({
       type: 'join',

@@ -7,6 +7,7 @@ import { GameEngine } from './game/engine'
 import type { PlayerState, KillMsg, HitConfirmMsg, NostrRoom, TelemetryData, MatchResults } from './net/types'
 import { publishRoom, subscribeRooms, sendSignalingMessage, subscribeSignaling, myPubkey } from './net/nostr'
 import { P2PHost, P2PClient } from './net/webrtc'
+import { generateRoomCode, PeerJSHost, PeerJSClient } from './net/peer'
 import { encodeSignal, decodeSignal } from './net/qr'
 
 import Lobby from './components/Lobby.vue'
@@ -21,6 +22,13 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const inLobby = ref(true)
 const callsign = ref(localStorage.getItem('ltown_callsign') || 'Pilot-' + Math.floor(100 + Math.random() * 900))
 const selectedCore = ref<CoreId>('telepotu')
+
+// Unified PeerJS Room State
+const currentRoomCode = ref('')
+const inviteRoomCode = ref('')
+const isConnecting = ref(false)
+let peerHost: PeerJSHost | null = null
+let peerClient: PeerJSClient | null = null
 
 // Match State
 const localPlayer = ref<PlayerState>({} as any)
@@ -78,6 +86,16 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKey)
   window.addEventListener('keyup', handleGlobalKeyUp)
 
+  // Detect room invite in URL hash (#room=XYZ) or search query (?room=XYZ)
+  if (typeof window !== 'undefined') {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const searchParams = new URLSearchParams(window.location.search)
+    const code = hashParams.get('room') || searchParams.get('room')
+    if (code) {
+      inviteRoomCode.value = code.trim().toUpperCase()
+    }
+  }
+
   // Subscribe to NOSTR rooms
   nostrSubClose = subscribeRooms((room) => {
     if (!nostrRooms.value.some(r => r.id === room.id)) {
@@ -92,6 +110,7 @@ onMounted(() => {
         mode: currentMatchMode,
         inLobby: inLobby.value,
         p2pStatus: p2pStatus.value,
+        roomCode: currentRoomCode.value,
         callsign: callsign.value,
         selectedCore: selectedCore.value,
         seed: engine?.map?.seed,
@@ -143,14 +162,18 @@ onMounted(() => {
         }))
       }
     }
+    ;(window as any).__createPeerRoom = createPeerRoom
+    ;(window as any).__joinPeerRoom = joinPeerRoom
     ;(window as any).__createNostrRoom = createNostrRoom
     ;(window as any).__joinNostrRoom = joinNostrRoom
     ;(window as any).__startSolo = startSolo
     ;(window as any).__setCallsign = (name: string) => { callsign.value = name }
     ;(window as any).__engine = () => engine
     ;(window as any).__sceneRenderer = () => sceneRenderer
-    ;(window as any).__p2pHost = () => p2pHost
-    ;(window as any).__p2pClient = () => p2pClient
+    ;(window as any).__p2pHost = () => peerHost || p2pHost
+    ;(window as any).__p2pClient = () => peerClient || p2pClient
+    ;(window as any).__peerHost = () => peerHost
+    ;(window as any).__peerClient = () => peerClient
   }
 })
 
@@ -240,7 +263,89 @@ const handleReturnToLobby = () => {
   isGameOver.value = false
   matchResults.value = null
   engine?.destroy()
+  peerHost?.destroy()
+  peerClient?.destroy()
+  peerHost = null
+  peerClient = null
+  currentRoomCode.value = ''
+  if (typeof window !== 'undefined') {
+    window.location.hash = ''
+  }
   inLobby.value = true
+}
+
+// Unified P2P Match (PeerJS Cloud WebRTC)
+const createPeerRoom = () => {
+  if (engine?.isRunning) return
+  const code = generateRoomCode()
+  currentRoomCode.value = code
+  if (typeof window !== 'undefined') {
+    window.location.hash = `room=${code}`
+  }
+  const seed = getDailySeed()
+  p2pStatus.value = `HOSTING (ROOM: ${code})`
+
+  peerHost = new PeerJSHost(
+    code,
+    (msg, fromId) => engine?.handleNetworkMessage(msg, fromId),
+    (peerId) => {
+      console.log(`[App] Peer ${peerId} joined match!`)
+      p2pStatus.value = `P2P LINKED (${peerHost?.peers.size || 0} PEERS)`
+      engine?.onPeerConnected(peerId)
+    },
+    (peerId) => {
+      console.log(`[App] Peer ${peerId} disconnected`)
+      p2pStatus.value = `P2P LINKED (${peerHost?.peers.size || 0} PEERS)`
+      engine?.onPeerDisconnected(peerId)
+    },
+    (roomCode) => {
+      console.log(`[App] Host room ${roomCode} ready on PeerJS Cloud`)
+    },
+    (err) => {
+      console.error('[App] PeerJS Host error:', err)
+      p2pStatus.value = 'HOST ERROR'
+    }
+  )
+
+  peerHost.setSeed(seed)
+  initEngine(seed, 'host')
+  engine?.setHostNetwork(peerHost)
+}
+
+const joinPeerRoom = (code: string) => {
+  if (engine?.isRunning) return
+  const roomCode = code.trim().toUpperCase()
+  currentRoomCode.value = roomCode
+  p2pStatus.value = `CONNECTING TO ${roomCode}...`
+  isConnecting.value = true
+
+  peerClient = new PeerJSClient(
+    roomCode,
+    (msg) => {
+      if (msg.type === 'welcome') {
+        p2pStatus.value = `P2P LINKED (ROOM: ${roomCode})`
+        initEngine(msg.seed, 'client')
+        engine?.setClientNetwork(peerClient!)
+        engine?.handleNetworkMessage(msg)
+        isConnecting.value = false
+        return
+      }
+      engine?.handleNetworkMessage(msg)
+    },
+    () => {
+      console.log(`[App] PeerJS connected to room ${roomCode}`)
+    },
+    () => {
+      console.log(`[App] PeerJS disconnected from room ${roomCode}`)
+      p2pStatus.value = 'DISCONNECTED'
+    },
+    (err) => {
+      console.error(`[App] PeerJS connection error:`, err)
+      p2pStatus.value = 'CONNECTION ERROR'
+      isConnecting.value = false
+      alert(`Could not connect to room "${roomCode}". Make sure the host has started the match!`)
+    }
+  )
 }
 
 // 1. Launch Solo Mode with Bots
@@ -566,11 +671,13 @@ const handleSignalSubmit = (val: string) => {
       v-model:selectedCore="selectedCore"
       :rooms="nostrRooms"
       :is-publishing="isPublishingRoom"
+      :invite-room-code="inviteRoomCode"
+      :is-connecting="isConnecting"
       @start-solo="startSolo"
+      @create-peer-room="createPeerRoom"
+      @join-peer-room="joinPeerRoom"
       @create-nostr-room="createNostrRoom"
       @join-nostr-room="joinNostrRoom"
-      @host-lan="hostLan"
-      @join-lan="joinLan"
       @refresh-rooms="() => {}"
     />
 
@@ -584,6 +691,7 @@ const handleSignalSubmit = (val: string) => {
       :hit-confirm="hitConfirm"
       :telemetry="telemetry"
       :p2p-status="p2pStatus"
+      :room-code="currentRoomCode"
     />
 
     <!-- Tab / F Scoreboard -->
