@@ -32,6 +32,7 @@ const hitFlash = ref(false)
 const hitConfirm = ref({ show: false, amount: 0, killed: false })
 const showScoreboard = ref(false)
 const isGameOver = ref(false)
+const p2pStatus = ref('')
 const matchResults = ref<MatchResults | null>(null)
 const telemetry = ref<TelemetryData>({
   ping: 0,
@@ -108,6 +109,7 @@ const handleGlobalKeyUp = (e: KeyboardEvent) => {
 const initEngine = (seed: number, mode: 'solo' | 'host' | 'client') => {
   if (!canvasRef.value) return
   currentMatchMode = mode
+  p2pStatus.value = ''
   localStorage.setItem('ltown_callsign', callsign.value)
   isGameOver.value = false
   matchResults.value = null
@@ -193,6 +195,7 @@ function makeRoomId(): string {
 
 // 2. Host NOSTR Match
 const createNostrRoom = async () => {
+  if (engine?.isRunning) return // already in a match (double-create guard)
   isPublishingRoom.value = true
   const roomId = makeRoomId()
   const seed = getDailySeed()
@@ -212,25 +215,40 @@ const createNostrRoom = async () => {
     (msg, fromId) => engine?.handleNetworkMessage(msg, fromId),
     (peer) => {
       console.log('Peer joined trial:', peer.id)
+      p2pStatus.value = `P2P LINKED (${p2pHost?.peers.size || 0})`
       engine?.onPeerConnected(peer.id)
     },
     (id) => {
       console.log('Peer left trial:', id)
       engine?.onPeerDisconnected(id)
+    },
+    (state) => {
+      if (state === 'failed') p2pStatus.value = 'P2P FAILED (NAT?)'
     }
   )
 
-  // Listen for NOSTR signaling DMs
+  // Listen for NOSTR signaling DMs (offers + trickled ICE)
   subscribeSignaling(async (data, fromPubkey) => {
-    if (data.type === 'offer') {
-      const pid = await p2pHost!.handleIncomingOffer(data.offer, async (answer) => {
-        await sendSignalingMessage(fromPubkey, { type: 'answer', answer, playerId: pid })
-      })
+    if (data.type === 'offer' && data.offer) {
+      if (p2pHost!.replaceStalePeer(fromPubkey)) return // live peer already
+      const pid = await p2pHost!.handleIncomingOffer(
+        data.offer,
+        async (answer) => {
+          await sendSignalingMessage(fromPubkey, { type: 'answer', answer, playerId: pid })
+        },
+        async (candidate) => {
+          await sendSignalingMessage(fromPubkey, { type: 'ice_candidate', candidate })
+        }
+      )
+      p2pHost!.bindPubkey(fromPubkey, pid)
+    } else if (data.type === 'ice_candidate' && data.candidate) {
+      p2pHost!.addIceCandidateByPubkey(fromPubkey, data.candidate)
     }
   })
 
   // Launch match immediately for host (no blocking on remote relay network)
   initEngine(seed, 'host')
+  p2pStatus.value = 'HOSTING'
   engine?.setHostNetwork(p2pHost)
 
   // Publish room to NOSTR relays in background
@@ -241,26 +259,67 @@ const createNostrRoom = async () => {
 
 // 3. Join NOSTR Room
 const joinNostrRoom = async (room: NostrRoom) => {
+  if (engine?.isRunning) return // already in a match (double-join guard)
+  let appliedAnswer = false
+  let offerTries = 0
+  let retryTimer: any = null
+  const stopLinking = () => {
+    if (retryTimer) clearInterval(retryTimer)
+    retryTimer = null
+    unsub()
+  }
   p2pClient = new P2PClient(
     (msg) => engine?.handleNetworkMessage(msg),
-    () => console.log('Connected to P2P Host'),
-    () => console.log('Disconnected from P2P Host')
+    () => {
+      console.log('Connected to P2P Host')
+      p2pStatus.value = 'P2P LINKED'
+      stopLinking()
+    },
+    () => {
+      console.log('Disconnected from P2P Host')
+      p2pStatus.value = 'P2P LOST'
+    },
+    (state) => {
+      if (state === 'failed') {
+        p2pStatus.value = 'P2P FAILED (NAT?)'
+        stopLinking()
+      }
+    }
   )
 
-  // Listen for answer from host
+  // Listen for answer + trickled ICE from host (stays open until linked)
   const unsub = subscribeSignaling(async (data) => {
-    if (data.type === 'answer') {
-      await p2pClient!.handleAnswer(data.answer)
-      unsub()
+    if (data.type === 'answer' && data.answer && !appliedAnswer) {
+      appliedAnswer = true
+      try {
+        await p2pClient!.handleAnswer(data.answer)
+      } catch (e) {
+        console.warn('Failed to apply host answer:', e)
+      }
+    } else if (data.type === 'ice_candidate' && data.candidate) {
+      p2pClient!.addIceCandidate(data.candidate)
     }
   })
 
-  // Create offer and send to host
-  await p2pClient.createOffer(async (offer) => {
+  // Create offer and send to host; resend until linked (heals lost signaling)
+  const sendOffer = async (offer: any) => {
     await sendSignalingMessage(room.pubkey, { type: 'offer', offer })
+  }
+  await p2pClient.createOffer(sendOffer, async (candidate) => {
+    await sendSignalingMessage(room.pubkey, { type: 'ice_candidate', candidate })
   })
+  retryTimer = setInterval(async () => {
+    if (p2pClient!.isConnected || offerTries++ >= 5) {
+      if (!p2pClient!.isConnected) p2pStatus.value = 'P2P UNREACHABLE'
+      stopLinking()
+      return
+    }
+    const current = p2pClient!.pc?.localDescription
+    if (current) await sendOffer(current)
+  }, 2500)
 
   initEngine(room.seed || getDailySeed(), 'client')
+  p2pStatus.value = 'P2P LINKING…'
   engine?.setClientNetwork(p2pClient)
 }
 
@@ -299,7 +358,24 @@ const hostLan = async () => {
               peerId: msg.peerId,
               answer
             }))
+          }, (candidate) => {
+            ws.send(JSON.stringify({
+              type: 'ice_candidate',
+              peerId: msg.peerId,
+              candidate
+            }))
           }, msg.peerId)
+        } else if (msg.type === 'ice_candidate' && msg.candidate) {
+          p2pHost!.addIceCandidate(msg.peerId, msg.candidate)
+        } else if (msg.type === 'peer_disconnected') {
+          lanModal.value.connectedPeersCount = (p2pHost?.peers.size || 0) + 1
+          engine?.onPeerDisconnected(msg.peerId)
+          const peer = p2pHost?.peers.get(msg.peerId)
+          if (peer) {
+            try { peer.dc?.close() } catch {}
+            try { peer.pc.close() } catch {}
+            p2pHost?.peers.delete(msg.peerId)
+          }
         }
       } catch (err) {
         console.warn('LAN signaling error:', err)
@@ -345,10 +421,17 @@ const handleJoinLan = async (hostAddress: string) => {
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === 'host_answer') {
-          await p2pClient!.handleAnswer(msg.answer)
+          try {
+            await p2pClient!.handleAnswer(msg.answer)
+          } catch (err) {
+            lanModalRef.value?.setConnecting(false, 'Failed to process host answer')
+            return
+          }
           lanModal.value.show = false
           initEngine(msg.seed || getDailySeed(), 'client')
           engine?.setClientNetwork(p2pClient!)
+        } else if (msg.type === 'ice_candidate' && msg.candidate) {
+          p2pClient!.addIceCandidate(msg.candidate)
         } else if (msg.type === 'error') {
           lanModalRef.value?.setConnecting(false, msg.message)
         }
@@ -362,6 +445,11 @@ const handleJoinLan = async (hostAddress: string) => {
         type: 'peer_offer',
         offer,
         callsign: callsign.value
+      }))
+    }, (candidate) => {
+      ws.send(JSON.stringify({
+        type: 'ice_candidate',
+        candidate
       }))
     })
   } catch (err: any) {
@@ -424,6 +512,7 @@ const handleSignalSubmit = (val: string) => {
       :hit-flash="hitFlash"
       :hit-confirm="hitConfirm"
       :telemetry="telemetry"
+      :p2p-status="p2pStatus"
     />
 
     <!-- Tab / F Scoreboard -->

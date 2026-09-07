@@ -10,6 +10,7 @@ const props = defineProps<{
   hitFlash: boolean
   hitConfirm: { show: boolean; amount: number; killed: boolean }
   telemetry?: TelemetryData
+  p2pStatus?: string
 }>()
 
 const currentTime = ref(Date.now())
@@ -162,6 +163,10 @@ const cPercent = computed(() => {
         <div class="telem-chip">
           <span class="telem-label">SIM</span>
           <span class="telem-val text-muted">{{ telemetry?.tickRate ?? 20 }}Hz</span>
+        </div>
+        <div v-if="p2pStatus" class="telem-chip">
+          <span class="telem-label">LINK</span>
+          <span class="telem-val text-white">{{ p2pStatus }}</span>
         </div>
       </div>
 
