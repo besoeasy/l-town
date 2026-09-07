@@ -33,7 +33,8 @@ function getInitialRelays(): string[] {
     'wss://relay.damus.io',
     'wss://relay.primal.net',
     'wss://nostr.mom',
-    'wss://nos.lol'
+    'wss://nos.lol',
+    'wss://cfrelay.haorendashu.workers.dev'
   )
   return relays
 }
