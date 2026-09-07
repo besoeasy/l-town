@@ -179,10 +179,22 @@ const startSolo = () => {
   initEngine(seed, 'solo')
 }
 
+// crypto.randomUUID needs a secure context (missing on plain-HTTP LAN play)
+function makeRoomId(): string {
+  const c = globalThis.crypto as Crypto | undefined
+  if (c?.randomUUID) return c.randomUUID().slice(0, 8)
+  if (c?.getRandomValues) {
+    return [...c.getRandomValues(new Uint8Array(4))]
+      .map(x => x.toString(16).padStart(2, '0'))
+      .join('')
+  }
+  return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0')
+}
+
 // 2. Host NOSTR Match
 const createNostrRoom = async () => {
   isPublishingRoom.value = true
-  const roomId = crypto.randomUUID().slice(0, 8)
+  const roomId = makeRoomId()
   const seed = getDailySeed()
 
   const room: NostrRoom = {
