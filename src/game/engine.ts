@@ -51,6 +51,7 @@ export class GameEngine {
   private lastHitTime = 0
   private lastMoveTime = Date.now()
   private lastAbilityUsedAt = 0
+  private isMouseHeld = false
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -225,36 +226,55 @@ export class GameEngine {
     })
 
     window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return
+      this.isMouseHeld = true
       if (!document.pointerLockElement) {
         canvas.requestPointerLock?.()
         return
       }
+      this.shoot()
+    })
+
+    window.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
-        this.shoot()
+        this.isMouseHeld = false
       }
+    })
+
+    window.addEventListener('blur', () => {
+      this.isMouseHeld = false
+      this.keys = {}
     })
 
     document.addEventListener('pointerlockchange', () => {
       this.isPointerLocked = !!document.pointerLockElement
+      if (!document.pointerLockElement) {
+        this.isMouseHeld = false
+      }
     })
   }
 
-  private toggleCrouch() {
+  private setCrouching(state: boolean) {
     if (!this.localPlayer.alive) return
-    this.localPlayer.crouching = !this.localPlayer.crouching
-    if (!this.localPlayer.crouching) {
+    if (this.localPlayer.crouching === state) return
+    this.localPlayer.crouching = state
+    if (!state) {
       this.lastMoveTime = Date.now()
       sound.stopRecharge()
     } else {
       sound.startRecharge()
     }
     if (this.mode === 'client') {
-      this.client?.send({ type: 'crouch', state: this.localPlayer.crouching })
+      this.client?.send({ type: 'crouch', state })
     }
   }
 
+  private toggleCrouch() {
+    this.setCrouching(!this.localPlayer.crouching)
+  }
+
   private triggerJump() {
-    if (!this.localPlayer.alive) return
+    if (!this.localPlayer.alive || this.localPlayer.crouching) return
     const onGround = this.isOnGround(this.localPlayer)
     if (!onGround) return
 
@@ -541,6 +561,7 @@ export class GameEngine {
 
       if (target.id === 1) {
         sound.playDie()
+        sound.stopRecharge()
       } else if (shooter?.id === 1) {
         sound.playKill()
       }
@@ -604,6 +625,11 @@ export class GameEngine {
           p.health = Math.floor(CFG.MAX_HEALTH * 0.75)
           p.alive = true
           p.respawnAt = 0
+          p.crouching = false
+          if (p.id === this.localPlayer.id) {
+            this.lastMoveTime = Date.now()
+            sound.stopRecharge()
+          }
         }
         continue
       }
@@ -705,19 +731,25 @@ export class GameEngine {
     this.lastFrameTime = time
 
     if (this.localPlayer.alive) {
-      // WASD movement calculation
+      // Crouched players are stationary: any WASD input stands back up first
+      const wantsMove = !!this.keys['w'] || !!this.keys['s'] || !!this.keys['a'] || !!this.keys['d']
+      if (this.localPlayer.crouching && wantsMove) {
+        this.setCrouching(false)
+      }
+
+      // WASD movement calculation (skipped entirely while crouched)
       let mx = 0, mz = 0
       const yaw = this.localPlayer.yaw
-      if (this.keys['w']) { mx -= Math.sin(yaw); mz -= Math.cos(yaw) }
-      if (this.keys['s']) { mx += Math.sin(yaw); mz += Math.cos(yaw) }
-      if (this.keys['a']) { mx += Math.sin(yaw - Math.PI / 2); mz += Math.cos(yaw - Math.PI / 2) }
-      if (this.keys['d']) { mx += Math.sin(yaw + Math.PI / 2); mz += Math.cos(yaw + Math.PI / 2) }
+      if (!this.localPlayer.crouching) {
+        if (this.keys['w']) { mx -= Math.sin(yaw); mz -= Math.cos(yaw) }
+        if (this.keys['s']) { mx += Math.sin(yaw); mz += Math.cos(yaw) }
+        if (this.keys['a']) { mx += Math.sin(yaw - Math.PI / 2); mz += Math.cos(yaw - Math.PI / 2) }
+        if (this.keys['d']) { mx += Math.sin(yaw + Math.PI / 2); mz += Math.cos(yaw + Math.PI / 2) }
+      }
 
       const len = Math.hypot(mx, mz)
       const isRunning = this.keys['shift']
-      let speed = this.localPlayer.crouching
-        ? CFG.CROUCH_SPEED
-        : isRunning
+      let speed = isRunning
         ? CFG.RUN_SPEED
         : CFG.PLAYER_SPEED
 
@@ -742,6 +774,10 @@ export class GameEngine {
         sound.startFootsteps(isRunning)
       } else {
         sound.stopFootsteps()
+        // Auto-crouch after 5s of no WASD movement
+        if (!this.localPlayer.crouching && Date.now() - this.lastMoveTime > CFG.AUTO_CROUCH_MS) {
+          this.setCrouching(true)
+        }
       }
 
       // Vertical gravity & ground detection
@@ -773,6 +809,11 @@ export class GameEngine {
       this.scene.camera.rotation.order = 'YXZ'
       this.scene.camera.rotation.y = this.localPlayer.yaw
       this.scene.camera.rotation.x = this.localPlayer.pitch
+
+      // Hold-to-fire: works while stationary or moving (shoot() rate-limits via lastShotTime)
+      if (this.isMouseHeld && document.pointerLockElement) {
+        this.shoot()
+      }
 
       // Send client input packet if connected as client
       if (this.mode === 'client') {
@@ -858,6 +899,8 @@ export class GameEngine {
       const p = this.players.get(fromId)!
       p.yaw = msg.yaw
       p.pitch = msg.pitch
+      // Crouched remotes are stationary until they send uncrouch
+      if (p.crouching) return
       let mx = 0, mz = 0
       if (msg.forward) { mx -= Math.sin(p.yaw); mz -= Math.cos(p.yaw) }
       if (msg.back) { mx += Math.sin(p.yaw); mz += Math.cos(p.yaw) }
@@ -865,7 +908,7 @@ export class GameEngine {
       if (msg.right) { mx += Math.sin(p.yaw + Math.PI / 2); mz += Math.cos(p.yaw + Math.PI / 2) }
       const len = Math.hypot(mx, mz)
       if (len > 0) {
-        let speed = p.crouching ? CFG.CROUCH_SPEED : msg.run ? CFG.RUN_SPEED : CFG.PLAYER_SPEED
+        let speed = msg.run ? CFG.RUN_SPEED : CFG.PLAYER_SPEED
         if (p.superActive) {
           speed *= 2.0
         }
@@ -961,6 +1004,8 @@ export class GameEngine {
         p.lastAbilityAt = Date.now()
         this.applyAbility(p)
       }
+    } else if (msg.type === 'crouch' && fromId && this.players.has(fromId)) {
+      this.players.get(fromId)!.crouching = msg.state
     }
   }
 

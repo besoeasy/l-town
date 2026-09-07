@@ -6,12 +6,12 @@ export const CFG = {
   VIS_RADIUS: 120,          // Distance culling limit
   PLAYER_SPEED: 9,          // units/sec base walk speed
   RUN_SPEED: 15,            // units/sec sprint
-  CROUCH_SPEED: 4,          // units/sec crouch
+  CROUCH_SPEED: 0,          // units/sec while crouched (stationary lock)
   PLAYER_RADIUS: 0.45,
   PLAYER_HEIGHT: 2.3,
   EYE_HEIGHT: 1.95,
   CROUCH_EYE_HEIGHT: 0.85,
-  AUTO_CROUCH_MS: 10000,    // Auto-crouch after 10s of no movement
+  AUTO_CROUCH_MS: 5000,     // Auto-crouch after 5s of no movement
   MAX_HEALTH: 500,          // Hull = nanite census (lore.md:23)
   REGEN_DELAY: 2000,        // Calm period before hull regen starts
   REGEN_RATE: 2,            // 2 nanites regenerated per second (base)
