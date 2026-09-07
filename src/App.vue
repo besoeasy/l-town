@@ -84,6 +84,74 @@ onMounted(() => {
       nostrRooms.value.push(room)
     }
   })
+
+  // Expose test and telemetry hooks on window for multi-container verification
+  if (typeof window !== 'undefined') {
+    ;(window as any).__getGameState = () => {
+      return {
+        mode: currentMatchMode,
+        inLobby: inLobby.value,
+        p2pStatus: p2pStatus.value,
+        callsign: callsign.value,
+        selectedCore: selectedCore.value,
+        seed: engine?.map?.seed,
+        matchTime: matchTime.value,
+        playersCount: engine?.players?.size || 0,
+        players: engine ? [...engine.players.values()].map(p => ({
+          id: p.id,
+          name: p.name,
+          character: p.character,
+          x: Math.round(p.x * 100) / 100,
+          y: Math.round(p.y * 100) / 100,
+          z: Math.round(p.z * 100) / 100,
+          yaw: Math.round(p.yaw * 100) / 100,
+          pitch: Math.round(p.pitch * 100) / 100,
+          health: p.health,
+          score: p.score,
+          alive: p.alive,
+          isBot: p.isBot
+        })) : [],
+        localPlayerId: engine?.localPlayer?.id,
+        localPlayer: engine ? {
+          id: engine.localPlayer.id,
+          name: engine.localPlayer.name,
+          character: engine.localPlayer.character,
+          x: Math.round(engine.localPlayer.x * 100) / 100,
+          y: Math.round(engine.localPlayer.y * 100) / 100,
+          z: Math.round(engine.localPlayer.z * 100) / 100,
+          health: engine.localPlayer.health,
+          alive: engine.localPlayer.alive
+        } : null,
+        remotePlayers: engine ? [...engine.players.values()].filter(p => p.id !== engine?.localPlayer?.id).map(p => ({
+          id: p.id,
+          name: p.name,
+          character: p.character,
+          x: Math.round(p.x * 100) / 100,
+          y: Math.round(p.y * 100) / 100,
+          z: Math.round(p.z * 100) / 100,
+          health: p.health,
+          alive: p.alive,
+          isBot: p.isBot
+        })) : [],
+        remoteMeshesCount: (sceneRenderer as any)?.playerMeshes?.size || 0,
+        nostrRooms: nostrRooms.value.map(r => ({
+          id: r.id,
+          name: r.name,
+          seed: r.seed,
+          core: r.core,
+          pubkey: r.pubkey
+        }))
+      }
+    }
+    ;(window as any).__createNostrRoom = createNostrRoom
+    ;(window as any).__joinNostrRoom = joinNostrRoom
+    ;(window as any).__startSolo = startSolo
+    ;(window as any).__setCallsign = (name: string) => { callsign.value = name }
+    ;(window as any).__engine = () => engine
+    ;(window as any).__sceneRenderer = () => sceneRenderer
+    ;(window as any).__p2pHost = () => p2pHost
+    ;(window as any).__p2pClient = () => p2pClient
+  }
 })
 
 onUnmounted(() => {
@@ -227,20 +295,23 @@ const createNostrRoom = async () => {
     }
   )
 
+  p2pHost.setSeed(seed)
+
   // Listen for NOSTR signaling DMs (offers + trickled ICE)
   subscribeSignaling(async (data, fromPubkey) => {
     if (data.type === 'offer' && data.offer) {
       if (p2pHost!.replaceStalePeer(fromPubkey)) return // live peer already
       const pid = await p2pHost!.handleIncomingOffer(
         data.offer,
-        async (answer) => {
-          await sendSignalingMessage(fromPubkey, { type: 'answer', answer, playerId: pid })
+        async (answer, assignedPlayerId) => {
+          await sendSignalingMessage(fromPubkey, { type: 'answer', answer, playerId: assignedPlayerId })
         },
         async (candidate) => {
           await sendSignalingMessage(fromPubkey, { type: 'ice_candidate', candidate })
-        }
+        },
+        undefined,
+        fromPubkey
       )
-      p2pHost!.bindPubkey(fromPubkey, pid)
     } else if (data.type === 'ice_candidate' && data.candidate) {
       p2pHost!.addIceCandidateByPubkey(fromPubkey, data.candidate)
     }
@@ -309,14 +380,14 @@ const joinNostrRoom = async (room: NostrRoom) => {
     await sendSignalingMessage(room.pubkey, { type: 'ice_candidate', candidate })
   })
   retryTimer = setInterval(async () => {
-    if (p2pClient!.isConnected || offerTries++ >= 5) {
-      if (!p2pClient!.isConnected) p2pStatus.value = 'P2P UNREACHABLE'
-      stopLinking()
+    if (p2pClient!.isConnected || appliedAnswer || offerTries++ >= 6) {
+      if (!p2pClient!.isConnected && !appliedAnswer) p2pStatus.value = 'P2P UNREACHABLE'
+      if (p2pClient!.isConnected) stopLinking()
       return
     }
     const current = p2pClient!.pc?.localDescription
     if (current) await sendOffer(current)
-  }, 2500)
+  }, 3000)
 
   initEngine(room.seed || getDailySeed(), 'client')
   p2pStatus.value = 'P2P LINKING…'

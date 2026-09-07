@@ -61,6 +61,9 @@ export class P2PHost {
       return false
     }
     if (peer.dc && peer.dc.readyState === 'open') return true
+    if (peer.pc && (peer.pc.connectionState === 'connecting' || peer.pc.connectionState === 'new')) {
+      return true
+    }
     try { peer.dc?.close() } catch {}
     try { peer.pc.close() } catch {}
     this.peers.delete(existing)
@@ -72,13 +75,23 @@ export class P2PHost {
     return !!peer?.dc && peer.dc.readyState === 'open'
   }
 
+  public seed = 12345
+
+  setSeed(seed: number) {
+    this.seed = seed
+  }
+
   async handleIncomingOffer(
     offer: RTCSessionDescriptionInit,
-    onSignalReady: (answer: RTCSessionDescriptionInit) => void,
+    onSignalReady: (answer: RTCSessionDescriptionInit, assignedPlayerId: number) => void,
     onIceCandidate?: IceCandidateHandler,
-    assignedId?: number
+    assignedId?: number,
+    pubkey?: string
   ): Promise<number> {
     const playerId = assignedId || this.nextPlayerId++
+    if (pubkey) {
+      this.bindPubkey(pubkey, playerId)
+    }
     const pc = new RTCPeerConnection(RTC_CONFIG)
     const peer: PeerConnection = {
       id: playerId,
@@ -86,6 +99,7 @@ export class P2PHost {
       dc: null,
       player: {} as any
     }
+    this.peers.set(playerId, peer)
 
     pc.ondatachannel = (e) => {
       peer.dc = e.channel
@@ -122,10 +136,9 @@ export class P2PHost {
 
     // Send the answer immediately; remaining candidates trickle afterwards
     if (pc.localDescription) {
-      onSignalReady(pc.localDescription)
+      onSignalReady(pc.localDescription, playerId)
     }
 
-    this.peers.set(playerId, peer)
     return playerId
   }
 
@@ -156,7 +169,7 @@ export class P2PHost {
       peer.dc?.send(JSON.stringify({
         type: 'welcome',
         playerId: peer.id,
-        seed: 12345,
+        seed: this.seed,
         hostId: 1
       }))
       if (this.onPeerJoinedCallback) {

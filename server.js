@@ -45,6 +45,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API: Nostr debug info
+  if (reqPath === '/api/nostr-debug') {
+    const subList = [];
+    for (const [ws, subs] of nostrSubs) {
+      const subEntries = [];
+      for (const [subId, filters] of subs) {
+        subEntries.push({ subId, filters });
+      }
+      subList.push({ readyState: ws.readyState, subs: subEntries });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({
+      eventsCount: nostrEvents.length,
+      events: nostrEvents.map(e => ({ id: e.id, kind: e.kind, pubkey: e.pubkey, tags: e.tags })),
+      clientsCount: nostrSubs.size,
+      clients: subList
+    }, null, 2));
+    return;
+  }
+
   if (reqPath === '/' || !reqPath) reqPath = '/index.html';
 
   let filePath = path.join(DIST_DIR, reqPath);
@@ -74,18 +94,25 @@ const nostrEvents = [];
 const nostrSubs = new Map(); // ws -> Map(subId -> filter)
 
 function matchNostrFilter(ev, f) {
+  if (!ev || !f) return false;
   if (f.ids && !f.ids.includes(ev.id)) return false;
   if (f.authors && !f.authors.includes(ev.pubkey)) return false;
   if (f.kinds && !f.kinds.includes(ev.kind)) return false;
+  const tags = Array.isArray(ev.tags) ? ev.tags : [];
   if (f['#t']) {
-    const tags = ev.tags.filter(t => t[0] === 't').map(t => t[1]);
-    if (!tags.some(t => f['#t'].includes(t))) return false;
+    const tTags = tags.filter(t => t[0] === 't').map(t => t[1]);
+    if (!tTags.some(t => f['#t'].includes(t))) return false;
   }
   if (f['#p']) {
-    const tags = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
-    if (!tags.some(p => f['#p'].includes(p))) return false;
+    const pTags = tags.filter(t => t[0] === 'p').map(t => t[1]);
+    if (!pTags.some(p => f['#p'].includes(p))) return false;
   }
   return true;
+}
+
+function matchAnyFilter(ev, filters) {
+  const flist = Array.isArray(filters) ? filters.flat(Infinity) : [filters];
+  return flist.some(f => matchNostrFilter(ev, f));
 }
 
 function handleNostrConnection(ws) {
@@ -105,8 +132,8 @@ function handleNostrConnection(ws) {
 
           for (const [subWs, subs] of nostrSubs) {
             if (subWs.readyState === 1) {
-              for (const [subId, filter] of subs) {
-                if (matchNostrFilter(ev, filter)) {
+              for (const [subId, filters] of subs) {
+                if (matchAnyFilter(ev, filters)) {
                   subWs.send(JSON.stringify(['EVENT', subId, ev]));
                 }
               }
@@ -115,12 +142,13 @@ function handleNostrConnection(ws) {
         }
       } else if (cmd === 'REQ') {
         const subId = data[1];
-        const filter = data[2] || {};
+        const rawFilters = data.length > 2 ? data.slice(2) : [{}];
+        const filters = Array.isArray(rawFilters) ? rawFilters.flat(Infinity) : [rawFilters];
         const subs = nostrSubs.get(ws);
-        if (subs) subs.set(subId, filter);
+        if (subs) subs.set(subId, filters);
 
         for (const ev of nostrEvents) {
-          if (matchNostrFilter(ev, filter)) {
+          if (matchAnyFilter(ev, filters)) {
             ws.send(JSON.stringify(['EVENT', subId, ev]));
           }
         }

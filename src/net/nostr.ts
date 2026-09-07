@@ -18,15 +18,23 @@ function hexToBytes(hex: string): Uint8Array {
 function getInitialRelays(): string[] {
   const relays: string[] = []
   if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    const customRelay = params.get('relay')
+    if (customRelay) {
+      relays.push(customRelay)
+    }
+
     const host = window.location.hostname
     const isLocal = host === 'localhost' ||
       host === '127.0.0.1' ||
       host.startsWith('192.168.') ||
       host.startsWith('10.') ||
+      host.startsWith('ltown') ||
       window.location.port === '30300'
     if (isLocal) {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      relays.push(`${proto}//${window.location.host}/nostr`)
+      const localRelay = `${proto}//${window.location.host}/nostr`
+      if (!relays.includes(localRelay)) relays.push(localRelay)
     }
   }
   relays.push(
@@ -102,6 +110,7 @@ export function subscribeRooms(onRoom: (room: NostrRoom) => void): () => void {
 
 export async function sendSignalingMessage(targetPubkey: string, data: any) {
   try {
+    console.log(`[NOSTR Signaling] Sending ${data.type} to ${targetPubkey.slice(0, 8)}...`)
     const json = JSON.stringify(data)
     const encrypted = await nip04.encrypt(secretKeyBytes, targetPubkey, json)
     const event = finalizeEvent({
@@ -112,6 +121,7 @@ export async function sendSignalingMessage(targetPubkey: string, data: any) {
     }, secretKeyBytes)
 
     await Promise.any(pool.publish(NOSTR_RELAYS, event))
+    console.log(`[NOSTR Signaling] Sent ${data.type} successfully to ${targetPubkey.slice(0, 8)}`)
   } catch (e) {
     console.warn('Failed to send NOSTR signaling msg:', e)
   }
@@ -119,6 +129,7 @@ export async function sendSignalingMessage(targetPubkey: string, data: any) {
 
 export function subscribeSignaling(onMessage: (data: any, fromPubkey: string) => void): () => void {
   try {
+    console.log(`[NOSTR Signaling] Subscribing to signaling for pubkey ${myPubkey.slice(0, 8)}...`)
     const sub = pool.subscribeMany(NOSTR_RELAYS, [
       {
         kinds: [4],
@@ -128,10 +139,14 @@ export function subscribeSignaling(onMessage: (data: any, fromPubkey: string) =>
     ], {
       async onevent(ev) {
         try {
+          console.log(`[NOSTR Signaling] Received kind 4 event from ${ev.pubkey.slice(0, 8)}`)
           const decrypted = await nip04.decrypt(secretKeyBytes, ev.pubkey, ev.content)
           const data = JSON.parse(decrypted)
+          console.log(`[NOSTR Signaling] Decrypted msg type: ${data.type} from ${ev.pubkey.slice(0, 8)}`)
           onMessage(data, ev.pubkey)
-        } catch {}
+        } catch (err) {
+          console.error('[NOSTR Signaling Decrypt Error]:', err)
+        }
       }
     })
     return () => sub.close()
