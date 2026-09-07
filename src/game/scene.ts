@@ -20,6 +20,18 @@ export class SceneRenderer {
   private armRecoil = 0
   private armRecoilRot = 0
   private bobTimer = 0
+  // Nanite hand <-> blaster morph (cosmetic): blaster on shot, hand after 5s idle
+  private blasterMorph = 0 // 0 = open hand, 1 = blaster gun
+  private blasterTarget = 0
+  private timeSinceShot = 99
+  private fingerGroups: THREE.Group[] = []
+  private fingerClosedX: number[] = []
+  private fingerBaseX: number[] = []
+  private blasterBarrel!: THREE.Mesh
+  private blasterCore!: THREE.Mesh
+  private thumbMesh!: THREE.Mesh
+  private readonly thumbClosedY = 0.4
+  private readonly morphDim = new THREE.Color(0x1e4a52)
   private firstPersonShield!: THREE.Group
   private projectiles: { mesh: THREE.Group; vel: THREE.Vector3; dist: number; maxDist: number }[] = []
   private sparks: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number }[] = []
@@ -115,14 +127,17 @@ export class SceneRenderer {
     this.robotArm.add(palm)
 
     // Central Palm Blaster Barrel & Energy Reactor Core
+    // (nanite-morphed: retracted while in open-hand form, extended in blaster form)
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.038, 0.07, 16), armJointMat)
     barrel.rotation.x = Math.PI / 2
     barrel.position.set(0, 0.005, -0.15)
     this.robotArm.add(barrel)
+    this.blasterBarrel = barrel
 
     const core = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), this.armCoreMat)
     core.position.set(0, 0.005, -0.15)
     this.robotArm.add(core)
+    this.blasterCore = core
 
     // Articulated robotic fingers in firing grip posture
     const fingerMat = armJointMat
@@ -142,6 +157,9 @@ export class SceneRenderer {
       fGroup.add(tip)
 
       this.robotArm.add(fGroup)
+      this.fingerGroups.push(fGroup)
+      this.fingerClosedX.push(angleX)
+      this.fingerBaseX.push(x)
     }
 
     addFinger(0.032, 0.01, -0.15, 0.07, 0.1)   // Index
@@ -149,11 +167,12 @@ export class SceneRenderer {
     addFinger(-0.011, 0.012, -0.15, 0.075, 0.1) // Ring
     addFinger(-0.032, 0.01, -0.15, 0.06, 0.14)  // Pinky
 
-    // Thumb on inner edge
+    // Thumb on inner edge (tucks into grip in blaster form, rests open in hand form)
     const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.02, 0.05), fingerMat)
     thumb.position.set(-0.048, -0.01, -0.11)
     thumb.rotation.y = 0.4
     this.robotArm.add(thumb)
+    this.thumbMesh = thumb
 
     // Muzzle Flash Effect
     this.muzzleFlash = new THREE.Group()
@@ -164,6 +183,9 @@ export class SceneRenderer {
     this.muzzleFlash.add(flashCore, flashCross1, flashCross2)
     this.muzzleFlash.visible = false
     this.robotArm.add(this.muzzleFlash)
+
+    // Start in open-hand form; first shot morphs to blaster
+    this.applyBlasterMorph(0)
 
     this.camera.add(this.robotArm)
   }
@@ -563,6 +585,9 @@ export class SceneRenderer {
   triggerShoot(superActive: boolean = false) {
     this.armRecoil = 0.08
     this.armRecoilRot = 0.12
+    // Nanite morph: hand -> blaster gun on every real shot
+    this.timeSinceShot = 0
+    this.blasterTarget = 1
     if (this.muzzleFlash) {
       this.muzzleFlash.visible = true
       this.muzzleFlashTime = 0.06
@@ -570,6 +595,25 @@ export class SceneRenderer {
     const color = superActive ? 0xffaa00 : 0x00f0ff
     this.armConduitMat.color.setHex(color)
     this.armCoreMat.color.setHex(color)
+  }
+
+  /** Lerp factor 0 (open nanite hand) -> 1 (palm blaster). Cosmetic only. */
+  private applyBlasterMorph(t: number) {
+    const m = THREE.MathUtils.clamp(t, 0, 1)
+    // Barrel + reactor core grow out of the palm in blaster form
+    const s = Math.max(0.001, m)
+    this.blasterBarrel.scale.setScalar(s)
+    this.blasterBarrel.visible = m > 0.02
+    this.blasterCore.scale.setScalar(s)
+    this.blasterCore.visible = m > 0.02
+    // Fingers: open/spread hand (m=0) -> curled firing grip (m=1)
+    for (let i = 0; i < this.fingerGroups.length; i++) {
+      const g = this.fingerGroups[i]
+      g.rotation.x = this.fingerClosedX[i] - (1 - m) * 0.55
+      g.position.x = this.fingerBaseX[i] * (1 + (1 - m) * 0.35)
+    }
+    // Thumb tucks into the grip in blaster form
+    this.thumbMesh.rotation.y = this.thumbClosedY - (1 - m) * 0.5
   }
 
   setFirstPersonShield(active: boolean) {
@@ -678,10 +722,24 @@ export class SceneRenderer {
       }
     }
 
-    // Update conduits color
+    // Update conduits color (dimmed while in open-hand form)
     const themeColor = superActive ? 0xffaa00 : 0x00f0ff
-    this.armConduitMat.color.setHex(themeColor)
-    this.armCoreMat.color.setHex(themeColor)
+    this.armConduitMat.color.setHex(themeColor).lerp(this.morphDim, (1 - this.blasterMorph) * 0.6)
+    this.armCoreMat.color.setHex(themeColor).lerp(this.morphDim, (1 - this.blasterMorph) * 0.6)
+
+    // Nanite revert: blaster -> open hand after 5s without a shot
+    this.timeSinceShot += dt
+    if (this.timeSinceShot > 5) {
+      this.blasterTarget = 0
+    }
+    if (this.blasterMorph !== this.blasterTarget) {
+      const rate = this.blasterTarget > this.blasterMorph ? 8 : 1.5
+      this.blasterMorph = THREE.MathUtils.clamp(
+        this.blasterMorph + Math.sign(this.blasterTarget - this.blasterMorph) * rate * dt,
+        0, 1
+      )
+      this.applyBlasterMorph(this.blasterMorph)
+    }
 
     // First person shield
     this.setFirstPersonShield(shieldActive)
