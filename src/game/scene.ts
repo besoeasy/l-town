@@ -601,10 +601,71 @@ export class SceneRenderer {
           superMesh.visible = p.superActive && Date.now() < p.superEnd
         }
 
-        if (p.crouching) {
-          group.scale.set(1, 0.65, 1)
-        } else {
-          group.scale.set(1, 1, 1)
+        // Humanoid Animation & Gait Cycle
+        const h = group.userData.humanoid
+        if (h) {
+          const prev = group.userData.prevPos as THREE.Vector3
+          const distMoved = Math.hypot(p.x - prev.x, p.z - prev.z)
+          prev.set(p.x, p.y, p.z)
+
+          const isMoving = distMoved > 0.015
+          const walkSpeed = Math.min(distMoved * 70, 12)
+          group.userData.animTime += isMoving ? walkSpeed * 0.025 : 0.035
+          const t = group.userData.animTime
+
+          // Floating Atma Core animation: slowly rotate & hover inside chest chamber (Lore: floating heart)
+          if (h.atmaPyramid) {
+            h.atmaPyramid.rotation.y += 0.035
+            h.atmaPyramid.position.y = 0.08 + Math.sin(t * 2.5) * 0.008
+          }
+
+          if (p.crouching) {
+            // Tactical crouch: drop pelvis, articulate knees and lean torso forward
+            h.pelvis.position.y = 0.60
+            h.spine.rotation.x = 0.22
+            h.leftLeg.rotation.x = -0.65
+            h.leftLowerLeg.rotation.x = 1.05
+            h.rightLeg.rotation.x = -0.65
+            h.rightLowerLeg.rotation.x = 1.05
+            h.leftArm.rotation.x = 0.35
+            h.rightArm.rotation.x = -Math.PI / 2 + 0.30
+          } else if (isMoving) {
+            // Humanoid walking/running gait cycle
+            h.pelvis.position.y = 0.88 + Math.abs(Math.sin(t * 2)) * 0.03
+            h.spine.rotation.x = 0.08
+            h.spine.rotation.y = Math.sin(t) * 0.06
+
+            const legAngle = Math.sin(t) * 0.65
+            h.leftLeg.rotation.x = legAngle
+            h.leftLowerLeg.rotation.x = legAngle < 0 ? -legAngle * 0.85 : 0.1
+
+            h.rightLeg.rotation.x = -legAngle
+            h.rightLowerLeg.rotation.x = -legAngle < 0 ? legAngle * 0.85 : 0.1
+
+            // Counter-balancing arm swing
+            h.leftArm.rotation.x = -legAngle * 0.5 + 0.2
+            h.rightArm.rotation.x = -Math.PI / 2 + 0.15 + Math.sin(t) * 0.06
+          } else {
+            // Idle combat stance: natural breathing & balance
+            h.pelvis.position.y = 0.88 + Math.sin(t * 1.5) * 0.008
+            h.spine.rotation.x = 0
+            h.spine.rotation.y = 0
+            h.leftLeg.rotation.x = 0.04
+            h.leftLowerLeg.rotation.x = 0.02
+            h.rightLeg.rotation.x = -0.04
+            h.rightLowerLeg.rotation.x = 0.02
+            h.leftArm.rotation.x = 0.18 + Math.sin(t * 1.5) * 0.025
+            h.rightArm.rotation.x = -Math.PI / 2 + 0.15 + Math.sin(t * 1.5) * 0.015
+          }
+
+          // Super mode: flare conduits and core golden amber (from lore)
+          if (group.userData.energyMat) {
+            const isSuper = p.superActive && Date.now() < p.superEnd
+            const activeColor = isSuper ? 0xffaa00 : group.userData.coreColor
+            group.userData.energyMat.color.set(activeColor)
+            group.userData.energyMat.emissive.set(activeColor)
+            group.userData.energyMat.emissiveIntensity = isSuper ? 2.5 : 1.2
+          }
         }
       }
     }
@@ -621,39 +682,359 @@ export class SceneRenderer {
     const group = new THREE.Group()
     const core = CORE_DETAILS[p.character] || CORE_DETAILS.telepotu
 
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x354052,
+    // ── High-Fidelity Materials for RX-11 Chassis ─────────────────────────────
+    // 1. Primary Nanite Armor: Dark carbon-nanite alloy with subtle gloss
+    const armorMat = new THREE.MeshStandardMaterial({
+      color: 0x222a36,
       roughness: 0.35,
-      metalness: 0.65
+      metalness: 0.85
     })
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.45), bodyMat)
-    body.position.y = 0.9
-    body.castShadow = true
-    group.add(body)
+    // 2. Secondary Armor & Trim: Polished gunmetal steel plates
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: 0x3a4659,
+      roughness: 0.28,
+      metalness: 0.90
+    })
+    // 3. Mechanical Joint Framework & Under-Chassis: Dark titanium
+    const jointMat = new THREE.MeshStandardMaterial({
+      color: 0x141820,
+      roughness: 0.55,
+      metalness: 0.70
+    })
+    // 4. Core Energy Emissive Material (tied to Maker core identity)
+    const energyMat = new THREE.MeshStandardMaterial({
+      color: core.color,
+      emissive: core.color,
+      emissiveIntensity: 1.2,
+      roughness: 0.2,
+      metalness: 0.5
+    })
+    // 5. Visor Material: High-intensity glowing optic slit
+    const visorMat = new THREE.MeshBasicMaterial({
+      color: core.color
+    })
+    // 6. Integrated Weapon Metal
+    const weaponMat = new THREE.MeshStandardMaterial({
+      color: 0x181e26,
+      roughness: 0.3,
+      metalness: 0.9
+    })
 
-    const coreMat = new THREE.MeshBasicMaterial({ color: core.color })
-    const coreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 16), coreMat)
-    coreMesh.rotation.x = Math.PI / 2
-    coreMesh.position.set(0, 1.1, 0.23)
-    group.add(coreMesh)
+    // Store articulated references for dynamic animation
+    const humanoid: any = {}
+    group.userData.humanoid = humanoid
+    group.userData.prevPos = new THREE.Vector3(p.x, p.y, p.z)
+    group.userData.animTime = Math.random() * 10
+    group.userData.energyMat = energyMat
+    group.userData.coreColor = core.color
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.4), bodyMat)
-    head.position.y = 1.75
-    head.castShadow = true
-    group.add(head)
+    // Root chassis container
+    const chassis = new THREE.Group()
+    chassis.name = 'chassis'
+    group.add(chassis)
+    humanoid.chassis = chassis
 
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.1), coreMat)
-    visor.position.set(0, 1.75, -0.2)
-    group.add(visor)
+    // ── PELVIS & HIPS (Center at y = 0.88m) ───────────────────────────────────
+    const pelvis = new THREE.Group()
+    pelvis.position.y = 0.88
+    chassis.add(pelvis)
+    humanoid.pelvis = pelvis
 
-    const gun = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.14, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0x181c24, metalness: 0.9 })
+    const pelvisBase = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.22), armorMat)
+    pelvisBase.castShadow = true
+    pelvis.add(pelvisBase)
+
+    const hipBelt = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.06, 0.24), trimMat)
+    hipBelt.position.y = 0.05
+    pelvis.add(hipBelt)
+
+    // Lateral hip actuators
+    const hipSocketGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.32, 12)
+    const hipSockets = new THREE.Mesh(hipSocketGeo, jointMat)
+    hipSockets.rotation.z = Math.PI / 2
+    pelvis.add(hipSockets)
+
+    // ── TORSO & THORAX ───────────────────────────────────────────────────────
+    const spine = new THREE.Group()
+    spine.position.y = 0.08
+    pelvis.add(spine)
+    humanoid.spine = spine
+
+    // Articulated abdominal spine column
+    const abdomen = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.16, 8), jointMat)
+    abdomen.position.y = 0.08
+    spine.add(abdomen)
+
+    // Upper chest group
+    const chestGroup = new THREE.Group()
+    chestGroup.position.y = 0.24
+    spine.add(chestGroup)
+    humanoid.chest = chestGroup
+
+    // Athletic V-taper armored thorax
+    const chestMain = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.32, 0.28), armorMat)
+    chestMain.position.y = 0.08
+    chestMain.castShadow = true
+    chestGroup.add(chestMain)
+
+    // Left and right pectoral armor plates
+    const leftPec = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.22, 0.05), trimMat)
+    leftPec.position.set(-0.11, 0.09, 0.14)
+    chestGroup.add(leftPec)
+
+    const rightPec = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.22, 0.05), trimMat)
+    rightPec.position.set(0.11, 0.09, 0.14)
+    chestGroup.add(rightPec)
+
+    // Dorsal spine stabilizer / backpack intake
+    const dorsalPack = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.30, 0.10), trimMat)
+    dorsalPack.position.set(0, 0.08, -0.16)
+    chestGroup.add(dorsalPack)
+
+    // ── THE ATMA CORE NANITE CHAMBER (From Lore: Floating Pyramid Heart) ─────
+    // Recessed circular aperture in chest center
+    const chamberRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 8, 24), jointMat)
+    chamberRing.position.set(0, 0.08, 0.145)
+    chestGroup.add(chamberRing)
+
+    const chamberBack = new THREE.Mesh(
+      new THREE.CircleGeometry(0.08, 16),
+      new THREE.MeshBasicMaterial({ color: 0x080b10 })
     )
-    gun.position.set(0.36, 1.05, -0.45)
-    group.add(gun)
+    chamberBack.position.set(0, 0.08, 0.138)
+    chestGroup.add(chamberBack)
 
-    // Tactical floating nameplate (always facing camera)
+    // Perfect 4-sided pyramid suspended center-mass in nanite fluid
+    const pyramidGeo = new THREE.ConeGeometry(0.065, 0.13, 4)
+    const atmaPyramid = new THREE.Mesh(pyramidGeo, energyMat)
+    atmaPyramid.position.set(0, 0.08, 0.142)
+    atmaPyramid.rotation.x = Math.PI / 6
+    chestGroup.add(atmaPyramid)
+    humanoid.atmaPyramid = atmaPyramid
+
+    // Glowing energy conduits wired from core to shoulders
+    const conduitGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.16, 6)
+    const leftConduit = new THREE.Mesh(conduitGeo, energyMat)
+    leftConduit.rotation.z = Math.PI / 4
+    leftConduit.position.set(-0.10, 0.14, 0.135)
+    chestGroup.add(leftConduit)
+
+    const rightConduit = new THREE.Mesh(conduitGeo, energyMat)
+    rightConduit.rotation.z = -Math.PI / 4
+    rightConduit.position.set(0.10, 0.14, 0.135)
+    chestGroup.add(rightConduit)
+
+    // ── HEAD & HELMET ────────────────────────────────────────────────────────
+    const headGroup = new THREE.Group()
+    headGroup.position.y = 0.28
+    chestGroup.add(headGroup)
+    humanoid.head = headGroup
+
+    // Neck joint collar
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.08, 0.08, 12), jointMat)
+    neck.position.y = 0.02
+    headGroup.add(neck)
+
+    // Sculpted combat helmet
+    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), armorMat)
+    helmet.position.y = 0.16
+    helmet.castShadow = true
+    headGroup.add(helmet)
+
+    // Angular chin guard
+    const chin = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.10, 4), trimMat)
+    chin.rotation.y = Math.PI / 4
+    chin.rotation.x = Math.PI
+    chin.position.set(0, 0.08, 0.10)
+    headGroup.add(chin)
+
+    // Helmet brow plate
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.06), trimMat)
+    brow.position.set(0, 0.21, 0.11)
+    headGroup.add(brow)
+
+    // Vivid glowing horizontal visor slit
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.04), visorMat)
+    visor.position.set(0, 0.16, 0.12)
+    headGroup.add(visor)
+
+    // Lateral telemetry pods
+    const earLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 8), jointMat)
+    earLeft.rotation.z = Math.PI / 2
+    earLeft.position.set(-0.13, 0.16, 0.02)
+    headGroup.add(earLeft)
+
+    const earRight = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 8), jointMat)
+    earRight.rotation.z = Math.PI / 2
+    earRight.position.set(0.13, 0.16, 0.02)
+    headGroup.add(earRight)
+
+    // ── LEFT ARM (Tactical Support Arm) ──────────────────────────────────────
+    const leftArm = new THREE.Group()
+    leftArm.position.set(-0.28, 0.16, 0)
+    chestGroup.add(leftArm)
+    humanoid.leftArm = leftArm
+
+    const leftPauldron = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.10, 0.18), trimMat)
+    leftPauldron.position.set(-0.02, 0.02, 0)
+    leftArm.add(leftPauldron)
+
+    const leftShoulderBall = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), jointMat)
+    leftArm.add(leftShoulderBall)
+
+    const leftBicep = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.09), armorMat)
+    leftBicep.position.set(0, -0.12, 0)
+    leftArm.add(leftBicep)
+
+    // Left forearm
+    const leftForearm = new THREE.Group()
+    leftForearm.position.set(0, -0.22, 0)
+    leftArm.add(leftForearm)
+    humanoid.leftForearm = leftForearm
+
+    const leftElbow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), jointMat)
+    leftForearm.add(leftElbow)
+
+    const leftForearmArmor = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.20, 0.085), armorMat)
+    leftForearmArmor.position.set(0, -0.10, 0)
+    leftForearm.add(leftForearmArmor)
+
+    // Glowing nanite conduit along left forearm
+    const leftForearmGlow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.01), energyMat)
+    leftForearmGlow.position.set(-0.045, -0.10, 0)
+    leftForearm.add(leftForearmGlow)
+
+    const leftHand = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.05), jointMat)
+    leftHand.position.set(0, -0.22, 0)
+    leftForearm.add(leftHand)
+
+    leftArm.rotation.x = 0.2
+    leftArm.rotation.z = 0.12
+    leftForearm.rotation.x = -0.4
+
+    // ── RIGHT ARM (Integrated Nanite Pulse Blaster) ───────────────────────────
+    const rightArm = new THREE.Group()
+    rightArm.position.set(0.28, 0.16, 0)
+    chestGroup.add(rightArm)
+    humanoid.rightArm = rightArm
+
+    const rightPauldron = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.10, 0.18), trimMat)
+    rightPauldron.position.set(0.02, 0.02, 0)
+    rightArm.add(rightPauldron)
+
+    const rightShoulderBall = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), jointMat)
+    rightArm.add(rightShoulderBall)
+
+    const rightBicep = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.09), armorMat)
+    rightBicep.position.set(0, -0.12, 0)
+    rightArm.add(rightBicep)
+
+    // Right forearm & weapon assembly
+    const rightForearm = new THREE.Group()
+    rightForearm.position.set(0, -0.22, 0)
+    rightArm.add(rightForearm)
+    humanoid.rightForearm = rightForearm
+
+    const rightElbow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), jointMat)
+    rightForearm.add(rightElbow)
+
+    const weaponBody = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.12, 0.36), weaponMat)
+    weaponBody.position.set(0, -0.04, 0.12)
+    rightForearm.add(weaponBody)
+
+    const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.032, 0.28, 12), jointMat)
+    gunBarrel.rotation.x = Math.PI / 2
+    gunBarrel.position.set(0, -0.02, 0.38)
+    rightForearm.add(gunBarrel)
+
+    const coil = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.18), energyMat)
+    coil.position.set(0, 0.03, 0.14)
+    rightForearm.add(coil)
+
+    const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.04, 12), trimMat)
+    muzzle.rotation.x = Math.PI / 2
+    muzzle.position.set(0, -0.02, 0.52)
+    rightForearm.add(muzzle)
+
+    rightArm.rotation.x = -Math.PI / 2 + 0.15
+    rightArm.rotation.y = -0.1
+    rightForearm.rotation.x = -0.15
+
+    // ── LEFT LEG ─────────────────────────────────────────────────────────────
+    const leftLeg = new THREE.Group()
+    leftLeg.position.set(-0.13, -0.04, 0)
+    pelvis.add(leftLeg)
+    humanoid.leftLeg = leftLeg
+
+    const leftHipBall = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), jointMat)
+    leftLeg.add(leftHipBall)
+
+    const leftThigh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.36, 0.14), armorMat)
+    leftThigh.position.set(0, -0.18, 0)
+    leftThigh.castShadow = true
+    leftLeg.add(leftThigh)
+
+    const leftLowerLeg = new THREE.Group()
+    leftLowerLeg.position.set(0, -0.38, 0)
+    leftLeg.add(leftLowerLeg)
+    humanoid.leftLowerLeg = leftLowerLeg
+
+    const leftKnee = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.06), trimMat)
+    leftKnee.position.set(0, 0.01, 0.08)
+    leftLowerLeg.add(leftKnee)
+
+    const leftShin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.36, 0.13), armorMat)
+    leftShin.position.set(0, -0.18, 0)
+    leftShin.castShadow = true
+    leftLowerLeg.add(leftShin)
+
+    const leftThruster = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.04), trimMat)
+    leftThruster.position.set(0, -0.16, -0.08)
+    leftLowerLeg.add(leftThruster)
+
+    const leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22), trimMat)
+    leftFoot.position.set(0, -0.38, 0.04)
+    leftFoot.castShadow = true
+    leftLowerLeg.add(leftFoot)
+
+    // ── RIGHT LEG ────────────────────────────────────────────────────────────
+    const rightLeg = new THREE.Group()
+    rightLeg.position.set(0.13, -0.04, 0)
+    pelvis.add(rightLeg)
+    humanoid.rightLeg = rightLeg
+
+    const rightHipBall = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), jointMat)
+    rightLeg.add(rightHipBall)
+
+    const rightThigh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.36, 0.14), armorMat)
+    rightThigh.position.set(0, -0.18, 0)
+    rightThigh.castShadow = true
+    rightLeg.add(rightThigh)
+
+    const rightLowerLeg = new THREE.Group()
+    rightLowerLeg.position.set(0, -0.38, 0)
+    rightLeg.add(rightLowerLeg)
+    humanoid.rightLowerLeg = rightLowerLeg
+
+    const rightKnee = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.06), trimMat)
+    rightKnee.position.set(0, 0.01, 0.08)
+    rightLowerLeg.add(rightKnee)
+
+    const rightShin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.36, 0.13), armorMat)
+    rightShin.position.set(0, -0.18, 0)
+    rightShin.castShadow = true
+    rightLowerLeg.add(rightShin)
+
+    const rightThruster = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.04), trimMat)
+    rightThruster.position.set(0, -0.16, -0.08)
+    rightLowerLeg.add(rightThruster)
+
+    const rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22), trimMat)
+    rightFoot.position.set(0, -0.38, 0.04)
+    rightFoot.castShadow = true
+    rightLowerLeg.add(rightFoot)
+
+    // ── TACTICAL HUD OVERLAYS (Nameplate, Beacon, Shield, Super) ─────────────
     const nameplateMat = new THREE.SpriteMaterial({
       map: createNameplateTexture(p.name, p.isBot),
       transparent: true,
@@ -665,7 +1046,6 @@ export class SceneRenderer {
     nameplate.position.set(0, 2.45, 0)
     group.add(nameplate)
 
-    // Holographic diamond beacon above player head
     const beaconMat = new THREE.MeshBasicMaterial({
       color: p.isBot ? 0x64748b : 0x00f0ff,
       wireframe: true,
@@ -678,7 +1058,7 @@ export class SceneRenderer {
     beacon.position.set(0, 2.95, 0)
     group.add(beacon)
 
-    // High-fidelity Multi-layer Blueish Kinetic Shield
+    // Kinetic Shield Dome
     const shieldGroup = new THREE.Group()
     shieldGroup.name = 'shield'
     shieldGroup.position.y = 1.1
@@ -705,7 +1085,6 @@ export class SceneRenderer {
     const ringShield = new THREE.Mesh(new THREE.TorusGeometry(1.38, 0.03, 8, 32), ringShieldMat)
     ringShield.rotation.x = Math.PI / 2
     shieldGroup.add(ringShield)
-
     group.add(shieldGroup)
 
     const superMat = new THREE.MeshBasicMaterial({
