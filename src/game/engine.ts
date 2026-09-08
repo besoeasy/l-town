@@ -23,17 +23,30 @@ export interface GameCallbacks {
   onMatchEnd: (results: MatchResults) => void
 }
 
-/** Balanced, unobstructed spawn locations along the central meridian avenue (direct line of sight) */
+/** Balanced, unobstructed spawn locations (fallback) */
 export const ARENA_SPAWNS: Array<{ x: number; y: number; z: number; yaw: number }> = [
-  { x: 0, y: 1.6, z: 35, yaw: Math.PI },     // Host (id 1): on south avenue facing +Z (straight toward Client)
-  { x: 0, y: 1.6, z: 55, yaw: 0 },           // Client 1 (id 2): on south avenue facing -Z (straight toward Host, 20m apart)
-  { x: 2.5, y: 1.6, z: 65, yaw: 0 },         // Client 2 (id 3): 30m away facing Host
-  { x: -2.5, y: 1.6, z: 65, yaw: 0 },        // Client 3 (id 4)
-  { x: 2.5, y: 1.6, z: 45, yaw: 0 },         // Client 4 (id 5)
-  { x: -2.5, y: 1.6, z: 45, yaw: Math.PI },  // Client 5 (id 6)
-  { x: 0, y: 1.6, z: -35, yaw: 0 },          // North avenue
-  { x: 0, y: 1.6, z: -55, yaw: Math.PI }     // North avenue
+  { x: 0, y: 1.6, z: 35, yaw: Math.PI },
+  { x: 0, y: 1.6, z: 55, yaw: 0 },
+  { x: 2.5, y: 1.6, z: 65, yaw: 0 },
+  { x: -2.5, y: 1.6, z: 65, yaw: 0 },
+  { x: 2.5, y: 1.6, z: 45, yaw: 0 },
+  { x: -2.5, y: 1.6, z: 45, yaw: Math.PI },
+  { x: 0, y: 1.6, z: -35, yaw: 0 },
+  { x: 0, y: 1.6, z: -55, yaw: Math.PI }
 ]
+
+export function getRandomSpawn(map: MapData): { x: number; y: number; z: number; yaw: number } {
+  if (!map || !map.spawns || map.spawns.length === 0) {
+    return { x: 0, y: 1.6, z: 0, yaw: Math.random() * Math.PI * 2 }
+  }
+  const s = map.spawns[Math.floor(Math.random() * map.spawns.length)]
+  return {
+    x: s.x,
+    y: s.y,
+    z: s.z,
+    yaw: Math.random() * Math.PI * 2
+  }
+}
 
 export function getArenaSpawn(playerId: number): { x: number; y: number; z: number; yaw: number } {
   const idx = Math.max(0, playerId - 1) % ARENA_SPAWNS.length
@@ -53,6 +66,7 @@ export class GameEngine {
   public ping = 0
   public fps = 60
 
+  private pendingSpawns = new Map<number, { x: number; y: number; z: number; yaw: number }>()
   private keys: Record<string, boolean> = {}
   private scene: SceneRenderer
   private callbacks: GameCallbacks
@@ -88,16 +102,7 @@ export class GameEngine {
     this.nearbyBoxes = nearby
     this.scene.buildMapGeometry(this.map)
 
-    const spawn = (mode === 'host' || mode === 'client')
-      ? getArenaSpawn(1)
-      : (() => {
-          const openSpawns = this.map.spawns.filter(s => {
-            const d = Math.hypot(s.x, s.z)
-            return (d >= 40 && d <= 80) || d >= 240
-          })
-          const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
-          return spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50, yaw: 0 }
-        })()
+    const spawn = this.getRandomSpawn()
 
     this.localPlayer = {
       id: 1,
@@ -106,7 +111,7 @@ export class GameEngine {
       x: spawn.x,
       y: spawn.y,
       z: spawn.z,
-      yaw: (spawn as any).yaw ?? 0,
+      yaw: spawn.yaw,
       pitch: 0,
       health: CFG.MAX_HEALTH,
       score: 0,
@@ -122,11 +127,26 @@ export class GameEngine {
     }
     this.players.set(1, this.localPlayer)
 
+    this.scene.camera.position.set(spawn.x, spawn.y + CFG.EYE_HEIGHT, spawn.z)
+    this.scene.camera.rotation.order = 'YXZ'
+    this.scene.camera.rotation.y = spawn.yaw
+
     this.setupInput(canvas)
+  }
+
+  public getRandomSpawn(): { x: number; y: number; z: number; yaw: number } {
+    return getRandomSpawn(this.map)
+  }
+
+  public allocateSpawnForPeer(peerId: number): { x: number; y: number; z: number; yaw: number } {
+    const spawn = this.getRandomSpawn()
+    this.pendingSpawns.set(peerId, spawn)
+    return spawn
   }
 
   setHostNetwork(host: any) {
     this.host = host
+    host.setSpawnProvider?.((id: number) => this.allocateSpawnForPeer(id))
     for (const [id] of host.peers) {
       if (!this.players.has(id)) {
         this.addRemotePlayer(id, `Pilot-${id}`, 'telepotu')
@@ -154,17 +174,9 @@ export class GameEngine {
     this.scene.updatePlayers([...this.players.values()], this.localPlayer.id)
   }
 
-  addRemotePlayer(id: number, name: string, character: CoreId) {
-    const spawn = (this.mode === 'host' || this.mode === 'client')
-      ? getArenaSpawn(id)
-      : (() => {
-          const openSpawns = this.map.spawns.filter(s => {
-            const d = Math.hypot(s.x, s.z)
-            return (d >= 40 && d <= 80) || d >= 240
-          })
-          const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
-          return spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50, yaw: 0 }
-        })()
+  addRemotePlayer(id: number, name: string, character: CoreId, spawnOverride?: { x: number; y: number; z: number; yaw?: number }) {
+    const spawn = spawnOverride || this.pendingSpawns.get(id) || this.getRandomSpawn()
+    this.pendingSpawns.delete(id)
     const player: PlayerState = {
       id,
       name: name || `Pilot-${id}`,
@@ -172,7 +184,7 @@ export class GameEngine {
       x: spawn.x,
       y: spawn.y,
       z: spawn.z,
-      yaw: (spawn as any).yaw ?? 0,
+      yaw: spawn.yaw ?? Math.random() * Math.PI * 2,
       pitch: 0,
       health: CFG.MAX_HEALTH,
       score: 0,
@@ -658,23 +670,23 @@ export class GameEngine {
     for (const p of this.players.values()) {
       if (!p.alive) {
         if (p.respawnAt > 0 && now >= p.respawnAt) {
-          const s = (this.mode === 'host' || this.mode === 'client')
-            ? getArenaSpawn(p.id)
-            : (() => {
-                const openSpawns = this.map.spawns.filter(sp => {
-                  const d = Math.hypot(sp.x, sp.z)
-                  return (d >= 40 && d <= 80) || d >= 240
-                })
-                const spawnPool = openSpawns.length > 0 ? openSpawns : this.map.spawns
-                return spawnPool[Math.floor(Math.random() * spawnPool.length)] || { x: 0, y: 1.6, z: 50, yaw: 0 }
-              })()
-          p.x = s.x; p.y = s.y; p.z = s.z
-          p.yaw = (s as any).yaw ?? p.yaw
-          p.health = Math.floor(CFG.MAX_HEALTH * 0.75)
+          const s = this.getRandomSpawn()
+          p.x = s.x
+          p.y = s.y
+          p.z = s.z
+          p.yaw = s.yaw
+          p.health = CFG.MAX_HEALTH
           p.alive = true
           p.respawnAt = 0
           p.crouching = false
           if (p.id === this.localPlayer.id) {
+            this.localPlayer.x = s.x
+            this.localPlayer.y = s.y
+            this.localPlayer.z = s.z
+            this.localPlayer.yaw = s.yaw
+            this.scene.camera.position.set(s.x, s.y + CFG.EYE_HEIGHT, s.z)
+            this.scene.camera.rotation.order = 'YXZ'
+            this.scene.camera.rotation.y = s.yaw
             this.lastMoveTime = Date.now()
             sound.stopRecharge()
           }
@@ -946,12 +958,24 @@ export class GameEngine {
       }
       for (const p of msg.players) {
         if (p.id === this.localPlayer.id) {
+          const wasDead = !this.localPlayer.alive && p.alive
           // Sync server-authoritative health, score, status
           this.localPlayer.health = p.health
           this.localPlayer.score = p.score
           this.localPlayer.alive = p.alive
           this.localPlayer.superActive = p.superActive
           this.localPlayer.shieldActive = p.shieldActive
+          if (wasDead) {
+            this.localPlayer.x = p.x
+            this.localPlayer.y = p.y
+            this.localPlayer.z = p.z
+            this.localPlayer.yaw = p.yaw
+            this.scene.camera.position.set(p.x, p.y + CFG.EYE_HEIGHT, p.z)
+            this.scene.camera.rotation.order = 'YXZ'
+            this.scene.camera.rotation.y = p.yaw
+            this.lastMoveTime = Date.now()
+            sound.stopRecharge()
+          }
         } else {
           this.players.set(p.id, p)
         }
@@ -1056,9 +1080,10 @@ export class GameEngine {
         this.localPlayer.x = msg.x
         this.localPlayer.y = msg.y
         this.localPlayer.z = msg.z
-        const spawn = getArenaSpawn(msg.playerId)
-        this.localPlayer.yaw = spawn.yaw
+        this.localPlayer.yaw = typeof msg.yaw === 'number' ? msg.yaw : Math.random() * Math.PI * 2
         this.scene.camera.position.set(msg.x, msg.y + CFG.EYE_HEIGHT, msg.z)
+        this.scene.camera.rotation.order = 'YXZ'
+        this.scene.camera.rotation.y = this.localPlayer.yaw
       }
       this.client?.send({
         type: 'join',

@@ -7,7 +7,7 @@ import { resolveCollision } from './physics'
 export function spawnBots(count: number, map: MapData): PlayerState[] {
   const bots: PlayerState[] = []
   for (let i = 0; i < count; i++) {
-    const s = map.spawns[i % map.spawns.length] || { x: (i - count / 2) * 10, y: 1.6, z: 20 }
+    const s = map.spawns[Math.floor(Math.random() * map.spawns.length)] || { x: (i - count / 2) * 10, y: 1.6, z: 20 }
     const core = CORE_IDS[(i + 1) % CORE_IDS.length]
     bots.push({
       id: 1000 + i,
@@ -51,7 +51,8 @@ export function tickBots(
         bot.x = s.x
         bot.y = s.y
         bot.z = s.z
-        bot.health = Math.floor(CFG.MAX_HEALTH * 0.75)
+        bot.yaw = Math.random() * Math.PI * 2
+        bot.health = CFG.MAX_HEALTH
         bot.alive = true
         bot.respawnAt = 0
       }

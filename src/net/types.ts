@@ -127,6 +127,7 @@ export interface WelcomeMsg {
   x?: number
   y?: number
   z?: number
+  yaw?: number
 }
 
 export interface JoinMsg {

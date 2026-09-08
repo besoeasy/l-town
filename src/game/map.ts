@@ -302,6 +302,22 @@ export function generateMap(seed: number): MapData {
     spawns.unshift({ x, y: spawnY(x, z), z })
   }
 
+  // Procedurally scatter random terrain spawns across the entire 750x750 map
+  for (let attempt = 0, placed = 0; attempt < 400 && placed < 120; attempt++) {
+    const rx = Math.round((rng() - 0.5) * (SIZE - 80))
+    const rz = Math.round((rng() - 0.5) * (SIZE - 80))
+    // Keep clear of central plaza hub building (20x15)
+    if (Math.abs(rx) < 18 && Math.abs(rz) < 15) continue
+    // Check clearance against structures and cover boxes
+    const blocked = boxes.some(b =>
+      Math.abs(rx - b.x) < b.w / 2 + 1.5 && Math.abs(rz - b.z) < b.d / 2 + 1.5
+    )
+    if (!blocked) {
+      spawns.push({ x: rx, y: spawnY(rx, rz), z: rz })
+      placed++
+    }
+  }
+
   return {
     floor: { w: SIZE, d: SIZE },
     boxes,

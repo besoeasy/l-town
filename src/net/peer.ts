@@ -1,6 +1,7 @@
 import { Peer, type DataConnection } from 'peerjs'
 import type { NetMessage, WelcomeMsg } from './types'
-import { getArenaSpawn } from '../game/engine'
+import { getRandomSpawn } from '../game/engine'
+import { generateMap } from '../game/map'
 
 // Public PeerJS Cloud broker + Google/Twilio STUN + OpenRelay TURN
 export const PEERJS_CONFIG = {
@@ -35,6 +36,7 @@ export class PeerJSHost {
   public peer: Peer | null = null
   public roomCode: string
   public isOpen = false
+  public spawnProvider?: (assignedPlayerId: number) => { x: number; y: number; z: number; yaw?: number }
 
   constructor(
     roomCode: string,
@@ -63,7 +65,10 @@ export class PeerJSHost {
         this.peers.set(assignedPlayerId, conn)
         console.log(`[PeerJSHost] Peer ${assignedPlayerId} DataChannel OPEN. Total: ${this.peers.size}`)
 
-        const spawn = getArenaSpawn(assignedPlayerId)
+        const spawn = this.spawnProvider
+          ? this.spawnProvider(assignedPlayerId)
+          : getRandomSpawn(generateMap(this.seed))
+
         const welcome: WelcomeMsg = {
           type: 'welcome',
           playerId: assignedPlayerId,
@@ -71,7 +76,8 @@ export class PeerJSHost {
           hostId: 1,
           x: spawn.x,
           y: spawn.y,
-          z: spawn.z
+          z: spawn.z,
+          yaw: spawn.yaw
         }
         conn.send(welcome)
 
@@ -106,6 +112,10 @@ export class PeerJSHost {
 
   setSeed(seed: number) {
     this.seed = seed
+  }
+
+  setSpawnProvider(provider: (assignedPlayerId: number) => { x: number; y: number; z: number; yaw?: number }) {
+    this.spawnProvider = provider
   }
 
   broadcast(msg: NetMessage, exceptId?: number) {
