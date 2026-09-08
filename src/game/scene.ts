@@ -97,6 +97,757 @@ function createNameplateTexture(name: string, isBot = false): THREE.CanvasTextur
   return texture
 }
 
+/** Procedural grayscale hexagonal nanite mesh + granular soil micro-texture for ground plane */
+function createTerrainDetailTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#e2e8f0'
+  ctx.fillRect(0, 0, 512, 512)
+
+  // Granular micro-stippling
+  const imgData = ctx.getImageData(0, 0, 512, 512)
+  const d = imgData.data
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 38
+    const val = Math.max(160, Math.min(255, 220 + n))
+    d[i] = val
+    d[i + 1] = val
+    d[i + 2] = val
+  }
+  ctx.putImageData(imgData, 0, 0)
+
+  // Hexagonal nanite lattice overlay
+  const hexR = 24
+  const hexW = Math.sqrt(3) * hexR
+  const hexH = 2 * hexR * 0.75
+
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.16)'
+  ctx.lineWidth = 1.6
+
+  function drawHex(cx: number, cy: number) {
+    ctx.beginPath()
+    for (let a = 0; a < 6; a++) {
+      const angle = (Math.PI / 180) * (60 * a - 30)
+      const hx = cx + hexR * Math.cos(angle)
+      const hy = cy + hexR * Math.sin(angle)
+      if (a === 0) ctx.moveTo(hx, hy)
+      else ctx.lineTo(hx, hy)
+    }
+    ctx.closePath()
+    ctx.stroke()
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.14)'
+    ctx.beginPath()
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  for (let y = -hexR; y < 512 + hexR; y += hexH) {
+    const row = Math.round(y / hexH)
+    const offsetX = row % 2 === 0 ? 0 : hexW / 2
+    for (let x = -hexW + offsetX; x < 512 + hexW; x += hexW) {
+      drawHex(x, y)
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(75, 75)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Procedural modular sci-fi composite plating texture */
+function createSciFiPanelTexture(opts: {
+  baseColor: string
+  highlightColor: string
+  seamColor: string
+  rivetColor?: string
+  accentColor?: string
+  label?: string
+  hazardBottom?: boolean
+  ventPlates?: boolean
+}): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = opts.seamColor
+  ctx.fillRect(0, 0, 512, 512)
+
+  const rows = 2
+  const cols = 2
+  const pad = 6
+  const pw = (512 - pad * (cols + 1)) / cols
+  const ph = (512 - pad * (rows + 1)) / rows
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = pad + c * (pw + pad)
+      const py = pad + r * (ph + pad)
+
+      const grad = ctx.createLinearGradient(px, py, px + pw, py + ph)
+      grad.addColorStop(0, opts.highlightColor)
+      grad.addColorStop(0.25, opts.baseColor)
+      grad.addColorStop(0.85, opts.baseColor)
+      grad.addColorStop(1, opts.seamColor)
+      ctx.fillStyle = grad
+      ctx.fillRect(px, py, pw, ph)
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(px + 4, py + 4, pw - 8, ph - 8)
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'
+      for (let n = 0; n < 30; n++) {
+        const nx = px + 6 + Math.random() * (pw - 12)
+        const ny = py + 6 + Math.random() * (ph - 12)
+        ctx.fillRect(nx, ny, 3 + Math.random() * 4, 1.5)
+      }
+
+      const rivetCol = opts.rivetColor || 'rgba(20, 25, 35, 0.7)'
+      for (const [rx, ry] of [
+        [px + 10, py + 10],
+        [px + pw - 10, py + 10],
+        [px + 10, py + ph - 10],
+        [px + pw - 10, py + ph - 10]
+      ]) {
+        ctx.fillStyle = rivetCol
+        ctx.beginPath()
+        ctx.arc(rx, ry, 3, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+        ctx.beginPath()
+        ctx.arc(rx - 0.8, ry - 0.8, 1, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      if (opts.ventPlates && (r + c) % 2 === 1) {
+        ctx.fillStyle = 'rgba(10, 15, 22, 0.35)'
+        for (let v = 0; v < 4; v++) {
+          ctx.fillRect(px + 28, py + 45 + v * 12, pw - 56, 4)
+        }
+      }
+    }
+  }
+
+  if (opts.hazardBottom) {
+    const barY = 512 - 28
+    ctx.fillStyle = '#eab308'
+    ctx.fillRect(0, barY, 512, 28)
+    ctx.fillStyle = '#18181b'
+    for (let x = -40; x < 540; x += 32) {
+      ctx.beginPath()
+      ctx.moveTo(x, 512)
+      ctx.lineTo(x + 14, 512)
+      ctx.lineTo(x + 30, barY)
+      ctx.lineTo(x + 16, barY)
+      ctx.closePath()
+      ctx.fill()
+    }
+  }
+
+  if (opts.label) {
+    ctx.font = 'bold 16px monospace'
+    ctx.fillStyle = opts.accentColor || 'rgba(0, 240, 255, 0.75)'
+    ctx.fillText(opts.label, 20, 36)
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(2, 2)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Heavy industrial blast door with hydraulic struts & status LEDs */
+function createBlastDoorTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#1b2129'
+  ctx.fillRect(0, 0, 512, 512)
+
+  ctx.fillStyle = '#2b3340'
+  ctx.fillRect(20, 20, 230, 472)
+  ctx.fillRect(262, 20, 230, 472)
+
+  for (const px of [60, 120, 180, 302, 362, 422]) {
+    ctx.fillStyle = '#14181f'
+    ctx.fillRect(px, 30, 18, 452)
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(px + 4, 30, 10, 452)
+  }
+
+  ctx.fillStyle = '#0f172a'
+  ctx.fillRect(250, 20, 12, 472)
+  for (let y = 30; y < 480; y += 30) {
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(248, y, 16, 6)
+  }
+
+  ctx.fillStyle = '#f59e0b'
+  ctx.fillRect(20, 220, 472, 34)
+  ctx.fillStyle = '#111827'
+  for (let x = -20; x < 520; x += 30) {
+    ctx.beginPath()
+    ctx.moveTo(x, 254)
+    ctx.lineTo(x + 14, 254)
+    ctx.lineTo(x + 28, 220)
+    ctx.lineTo(x + 14, 220)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  ctx.fillStyle = '#22c55e'
+  ctx.beginPath()
+  ctx.arc(135, 120, 7, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#ef4444'
+  ctx.beginPath()
+  ctx.arc(377, 120, 7, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.font = 'bold 15px monospace'
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.fillText('MERIDIAN ACCESS // SEC-AIRLOCK 01', 256, 190)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Cyberpunk curtain wall grid with illuminated office terminals & dark ruined floors */
+function createCyberWindowTexture(): { map: THREE.CanvasTexture; emissiveMap: THREE.CanvasTexture } {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  const emCanvas = document.createElement('canvas')
+  emCanvas.width = 512
+  emCanvas.height = 512
+  const emCtx = emCanvas.getContext('2d')!
+
+  ctx.fillStyle = '#081826'
+  ctx.fillRect(0, 0, 512, 512)
+
+  emCtx.fillStyle = '#000000'
+  emCtx.fillRect(0, 0, 512, 512)
+
+  const rows = 4
+  const cols = 4
+  const border = 8
+  const w = (512 - border * (cols + 1)) / cols
+  const h = (512 - border * (rows + 1)) / rows
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = border + c * (w + border)
+      const y = border + r * (h + border)
+      const state = (r * 4 + c * 7) % 5
+
+      let winColor = '#0f2942'
+      let emColor = '#000000'
+      let hasUi = false
+
+      if (state === 0 || state === 3) {
+        winColor = '#0b3d63'
+        emColor = 'rgba(0, 240, 255, 0.85)'
+        hasUi = true
+      } else if (state === 1) {
+        winColor = '#42280d'
+        emColor = 'rgba(245, 158, 11, 0.75)'
+        hasUi = true
+      } else if (state === 2) {
+        winColor = '#1e3a5f'
+        emColor = 'rgba(56, 189, 248, 0.55)'
+        hasUi = false
+      } else {
+        winColor = '#08121c'
+        emColor = '#000000'
+        hasUi = false
+      }
+
+      ctx.fillStyle = winColor
+      ctx.fillRect(x, y, w, h)
+
+      if (emColor !== '#000000') {
+        emCtx.fillStyle = emColor
+        emCtx.fillRect(x + 4, y + 4, w - 8, h - 8)
+      }
+
+      if (hasUi) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+        emCtx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+        for (let l = 0; l < 4; l++) {
+          const ly = y + 20 + l * 16
+          const lw = 20 + ((c + l) * 23) % 65
+          ctx.fillRect(x + 12, ly, lw, 3)
+          emCtx.fillRect(x + 12, ly, lw, 3)
+        }
+      }
+
+      const grad = ctx.createLinearGradient(x, y, x + w, y + h)
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.18)')
+      grad.addColorStop(0.3, 'rgba(255, 255, 255, 0.0)')
+      grad.addColorStop(0.65, 'rgba(255, 255, 255, 0.08)')
+      grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(x, y, w, h)
+
+      ctx.strokeStyle = '#1e293b'
+      ctx.lineWidth = 2
+      ctx.strokeRect(x, y, w, h)
+    }
+  }
+
+  ctx.fillStyle = '#1e2633'
+  for (let c = 0; c <= cols; c++) {
+    ctx.fillRect(c * (w + border), 0, border, 512)
+  }
+  for (let r = 0; r <= rows; r++) {
+    ctx.fillRect(0, r * (h + border), 512, border)
+  }
+
+  const map = new THREE.CanvasTexture(canvas)
+  map.wrapS = THREE.RepeatWrapping
+  map.wrapT = THREE.RepeatWrapping
+  map.repeat.set(2, 2)
+  map.colorSpace = THREE.SRGBColorSpace
+
+  const emissiveMap = new THREE.CanvasTexture(emCanvas)
+  emissiveMap.wrapS = THREE.RepeatWrapping
+  emissiveMap.wrapT = THREE.RepeatWrapping
+  emissiveMap.repeat.set(2, 2)
+
+  return { map, emissiveMap }
+}
+
+/** Dark heavy transit road asphalt with embedded nanite conduits & hazard curbs */
+function createRoadAsphaltTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#222730'
+  ctx.fillRect(0, 0, 512, 512)
+
+  const imgData = ctx.getImageData(0, 0, 512, 512)
+  const d = imgData.data
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 28
+    d[i] = Math.max(0, Math.min(255, d[i] + n))
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n))
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n))
+  }
+  ctx.putImageData(imgData, 0, 0)
+
+  ctx.strokeStyle = '#14181f'
+  ctx.lineWidth = 3
+  for (let y = 0; y <= 512; y += 128) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(512, y)
+    ctx.stroke()
+  }
+
+  for (const cx of [80, 432]) {
+    ctx.fillStyle = '#14181f'
+    ctx.fillRect(cx - 10, 0, 20, 512)
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.45)'
+    ctx.fillRect(cx - 3, 0, 6, 512)
+    ctx.fillStyle = '#334155'
+    for (let gy = 0; gy < 512; gy += 16) {
+      ctx.fillRect(cx - 9, gy, 18, 3)
+    }
+  }
+
+  const curbW = 32
+  for (const [bx, dir] of [
+    [0, 1],
+    [512 - curbW, -1]
+  ] as const) {
+    ctx.fillStyle = '#1e242d'
+    ctx.fillRect(bx, 0, curbW, 512)
+    ctx.fillStyle = '#eab308'
+    for (let y = -curbW; y < 512 + curbW; y += 32) {
+      ctx.beginPath()
+      ctx.moveTo(bx, y)
+      ctx.lineTo(bx + curbW, y + curbW * dir)
+      ctx.lineTo(bx + curbW, y + curbW * dir + 14)
+      ctx.lineTo(bx, y + 14)
+      ctx.closePath()
+      ctx.fill()
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(1, 8)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Bio-planter garden texture with hydroponic cells & lush vegetation */
+function createGardenTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#22381e'
+  ctx.fillRect(0, 0, 256, 256)
+
+  ctx.strokeStyle = '#142412'
+  ctx.lineWidth = 4
+  for (let x = 0; x <= 256; x += 64) {
+    ctx.beginPath()
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, 256)
+    ctx.stroke()
+  }
+  for (let y = 0; y <= 256; y += 64) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(256, y)
+    ctx.stroke()
+  }
+
+  const greens = ['#2e7d32', '#388e3c', '#4caf50', '#81c784', '#1b5e20', '#15803d']
+  for (let i = 0; i < 350; i++) {
+    const gx = Math.random() * 256
+    const gy = Math.random() * 256
+    const gr = 2 + Math.random() * 4
+    ctx.fillStyle = greens[Math.floor(Math.random() * greens.length)]
+    ctx.beginPath()
+    ctx.arc(gx, gy, gr, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.fillStyle = 'rgba(0, 240, 255, 0.45)'
+  for (let x = 32; x < 256; x += 64) {
+    for (let y = 32; y < 256; y += 64) {
+      ctx.beginPath()
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(2, 2)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Hazard chevron warning texture for bollards & safety barriers */
+function createHazardTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#eab308'
+  ctx.fillRect(0, 0, 128, 128)
+
+  ctx.fillStyle = '#18181b'
+  for (let x = -128; x < 256; x += 32) {
+    ctx.beginPath()
+    ctx.moveTo(x, 128)
+    ctx.lineTo(x + 16, 128)
+    ctx.lineTo(x + 48, 0)
+    ctx.lineTo(x + 32, 0)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(1, 4)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Flowing water caustics & ripple texture */
+function createWaterTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+
+  const grad = ctx.createLinearGradient(0, 0, 256, 256)
+  grad.addColorStop(0, '#0369a1')
+  grad.addColorStop(0.5, '#0284c7')
+  grad.addColorStop(1, '#075985')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, 256, 256)
+
+  ctx.strokeStyle = 'rgba(186, 230, 253, 0.45)'
+  ctx.lineWidth = 2.5
+  for (let i = 0; i < 18; i++) {
+    const cx = (i * 47) % 256
+    const cy = (i * 61) % 256
+    const r = 16 + ((i * 11) % 40)
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, r, r * 0.6, i * 0.4, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)'
+  ctx.lineWidth = 1.5
+  for (let i = 0; i < 12; i++) {
+    const sx = Math.random() * 256
+    const sy = Math.random() * 256
+    ctx.beginPath()
+    ctx.moveTo(sx, sy)
+    ctx.bezierCurveTo(sx + 30, sy - 20, sx + 50, sy + 30, sx + 80, sy + 10)
+    ctx.stroke()
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(2, 2)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Cyberpunk holographic broadcast billboard for Central Meridian Hub faces */
+function createHoloSignTexture(opts: {
+  title: string
+  subtitle: string
+  desc: string
+  badge: string
+  accentColor: string
+  secondaryColor?: string
+}): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = 'rgba(8, 14, 26, 0.90)'
+  ctx.fillRect(0, 0, 512, 256)
+
+  ctx.strokeStyle = opts.accentColor
+  ctx.lineWidth = 3
+  const bPad = 12
+  ctx.beginPath()
+  ctx.moveTo(bPad, bPad + 30)
+  ctx.lineTo(bPad, bPad)
+  ctx.lineTo(bPad + 30, bPad)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(512 - bPad - 30, bPad)
+  ctx.lineTo(512 - bPad, bPad)
+  ctx.lineTo(512 - bPad, bPad + 30)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(bPad, 256 - bPad - 30)
+  ctx.lineTo(bPad, 256 - bPad)
+  ctx.lineTo(bPad + 30, 256 - bPad)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(512 - bPad - 30, 256 - bPad)
+  ctx.lineTo(512 - bPad, 256 - bPad)
+  ctx.lineTo(512 - bPad, 256 - bPad - 30)
+  ctx.stroke()
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)'
+  for (let y = 0; y < 256; y += 4) {
+    ctx.fillRect(0, y, 512, 1.5)
+  }
+
+  ctx.fillStyle = opts.accentColor
+  ctx.fillRect(bPad + 16, bPad + 14, 8, 20)
+  ctx.font = 'bold 13px monospace'
+  ctx.fillStyle = opts.accentColor
+  ctx.fillText(opts.badge.toUpperCase(), bPad + 32, bPad + 28)
+
+  ctx.font = '900 28px monospace'
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(opts.title.toUpperCase(), bPad + 16, bPad + 68)
+
+  ctx.font = 'bold 16px monospace'
+  ctx.fillStyle = opts.secondaryColor || opts.accentColor
+  ctx.fillText(opts.subtitle.toUpperCase(), bPad + 16, bPad + 98)
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(bPad + 16, bPad + 115)
+  ctx.lineTo(512 - bPad - 16, bPad + 115)
+  ctx.stroke()
+
+  ctx.fillStyle = opts.accentColor
+  for (let x = bPad + 16; x < 512 - bPad - 16; x += 8) {
+    const waveH = 4 + Math.sin(x * 0.12) * 8 + Math.cos(x * 0.05) * 6
+    ctx.fillRect(x, bPad + 135 - waveH / 2, 4, waveH)
+  }
+
+  ctx.font = '14px monospace'
+  ctx.fillStyle = '#cbd5e1'
+  ctx.fillText(opts.desc.toUpperCase(), bPad + 16, 256 - bPad - 35)
+
+  ctx.fillStyle = opts.accentColor
+  ctx.beginPath()
+  ctx.arc(512 - bPad - 36, bPad + 28, 5, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.font = 'bold 11px monospace'
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText('LIVE RELAY', 512 - bPad - 116, bPad + 32)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Procedural banded gas-giant texture for Boreas */
+function createBoreasTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#1e0538'
+  ctx.fillRect(0, 0, 512, 256)
+
+  const bands = [
+    { y: 0, h: 28, c1: '#2e0854', c2: '#3b0764' },
+    { y: 28, h: 32, c1: '#4a044e', c2: '#581c87' },
+    { y: 60, h: 24, c1: '#06b6d4', c2: '#0891b2' },
+    { y: 84, h: 36, c1: '#311042', c2: '#240638' },
+    { y: 120, h: 42, c1: '#701a75', c2: '#86198f' },
+    { y: 162, h: 30, c1: '#164e63', c2: '#0e7490' },
+    { y: 192, h: 36, c1: '#4c0519', c2: '#581c87' },
+    { y: 228, h: 28, c1: '#1e0b36', c2: '#2e0854' }
+  ]
+
+  for (const b of bands) {
+    const grad = ctx.createLinearGradient(0, b.y, 0, b.y + b.h)
+    grad.addColorStop(0, b.c1)
+    grad.addColorStop(1, b.c2)
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.moveTo(0, b.y)
+    for (let x = 0; x <= 512; x += 16) {
+      const wave = Math.sin(x * 0.04 + b.y * 0.1) * 3 + Math.cos(x * 0.08) * 1.5
+      ctx.lineTo(x, b.y + wave)
+    }
+    ctx.lineTo(512, b.y + b.h)
+    for (let x = 512; x >= 0; x -= 16) {
+      const wave = Math.sin(x * 0.04 + (b.y + b.h) * 0.1) * 3
+      ctx.lineTo(x, b.y + b.h + wave)
+    }
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  // Great Boreas Storm Vortex (latitude ~ -25%)
+  const sx = 340
+  const sy = 175
+  const sw = 48
+  const sh = 24
+  ctx.save()
+  ctx.translate(sx, sy)
+  ctx.rotate(-0.1)
+  const stormGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, sw)
+  stormGrad.addColorStop(0, '#f43f5e')
+  stormGrad.addColorStop(0.35, '#c026d3')
+  stormGrad.addColorStop(0.7, '#7e22ce')
+  stormGrad.addColorStop(1, 'transparent')
+  ctx.fillStyle = stormGrad
+  ctx.beginPath()
+  ctx.ellipse(0, 0, sw, sh, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.ellipse(0, 0, sw * 0.55, sh * 0.55, 0, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+
+  const limb = ctx.createLinearGradient(0, 0, 512, 0)
+  limb.addColorStop(0, 'rgba(10, 2, 20, 0.65)')
+  limb.addColorStop(0.15, 'rgba(0, 0, 0, 0.0)')
+  limb.addColorStop(0.85, 'rgba(0, 0, 0, 0.0)')
+  limb.addColorStop(1, 'rgba(10, 2, 20, 0.65)')
+  ctx.fillStyle = limb
+  ctx.fillRect(0, 0, 512, 256)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+/** Procedural concentric radial rings for Boreas planetary system */
+function createBoreasRingTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+
+  ctx.clearRect(0, 0, 512, 512)
+
+  const cx = 256
+  const cy = 256
+  const rIn = 256 * (82 / 145) // ~145 px
+  const rOut = 254
+
+  const radGrad = ctx.createRadialGradient(cx, cy, rIn - 4, cx, cy, rOut)
+  radGrad.addColorStop(0.0, 'rgba(0, 0, 0, 0.0)')
+  radGrad.addColorStop(0.05, 'rgba(168, 85, 247, 0.4)')
+  radGrad.addColorStop(0.25, 'rgba(192, 132, 252, 0.85)')
+  radGrad.addColorStop(0.48, 'rgba(232, 121, 249, 0.95)')
+  radGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.0)')
+  radGrad.addColorStop(0.56, 'rgba(0, 0, 0, 0.0)')
+  radGrad.addColorStop(0.58, 'rgba(168, 85, 247, 0.8)')
+  radGrad.addColorStop(0.85, 'rgba(147, 51, 234, 0.65)')
+  radGrad.addColorStop(0.97, 'rgba(126, 34, 206, 0.35)')
+  radGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)')
+
+  ctx.fillStyle = radGrad
+  ctx.beginPath()
+  ctx.arc(cx, cy, rOut, 0, Math.PI * 2)
+  ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true)
+  ctx.closePath()
+  ctx.fill()
+
+  for (let r = rIn + 12; r < rOut - 6; r += 5) {
+    const norm = (r - rIn) / (rOut - rIn)
+    if (norm >= 0.48 && norm <= 0.58) continue
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)'
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
 export class SceneRenderer {
   public scene: THREE.Scene
   public camera: THREE.PerspectiveCamera
@@ -135,6 +886,15 @@ export class SceneRenderer {
   private shieldTime = 0
   private projectiles: { mesh: THREE.Group; vel: THREE.Vector3; dist: number; maxDist: number }[] = []
   private sparks: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number }[] = []
+
+  // Environmental graphics & animated elements
+  private waterTexture?: THREE.CanvasTexture
+  private holoMaterials: THREE.MeshBasicMaterial[] = []
+  private courtyardShrine?: THREE.Group
+  private towerBeacon?: THREE.PointLight
+  private boreasPlanet?: THREE.Mesh
+  private streetlampLights: THREE.PointLight[] = []
+  private plazaLight?: THREE.PointLight
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene()
@@ -363,24 +1123,50 @@ export class SceneRenderer {
   }
 
   private setupCosmos() {
-    // Boreas planet in orbital sky
-    const planetGeo = new THREE.SphereGeometry(65, 24, 24)
-    const planetMat = new THREE.MeshLambertMaterial({ color: 0x5a1a8a, fog: false })
+    // Boreas gas giant in orbital sky with atmospheric flow bands & Great Boreas Storm
+    const planetGeo = new THREE.SphereGeometry(65, 36, 36)
+    const boreasTex = createBoreasTexture()
+    const planetMat = new THREE.MeshStandardMaterial({
+      map: boreasTex,
+      roughness: 0.85,
+      metalness: 0.08,
+      fog: false
+    })
     const planet = new THREE.Mesh(planetGeo, planetMat)
     planet.position.set(-220, 140, -420)
+    planet.rotation.z = 0.22 // Axial tilt
     this.scene.add(planet)
+    this.boreasPlanet = planet
 
-    const ringGeo = new THREE.TorusGeometry(82, 5, 6, 48)
-    const ringMat = new THREE.MeshLambertMaterial({
-      color: 0x9a40dd,
-      fog: false,
+    // Atmospheric halo behind Boreas
+    const haloGeo = new THREE.SphereGeometry(69, 32, 32)
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0x9333ea,
       transparent: true,
-      opacity: 0.65
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      fog: false
+    })
+    const halo = new THREE.Mesh(haloGeo, haloMat)
+    halo.position.copy(planet.position)
+    this.scene.add(halo)
+
+    // Concentric planetary rings with Cassini division gap
+    const ringGeo = new THREE.RingGeometry(82, 145, 64)
+    const ringTex = createBoreasRingTexture()
+    const ringMat = new THREE.MeshBasicMaterial({
+      map: ringTex,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.88,
+      fog: false
     })
     const ring = new THREE.Mesh(ringGeo, ringMat)
     ring.position.copy(planet.position)
-    ring.rotation.x = Math.PI * 0.32
-    ring.rotation.y = Math.PI * 0.1
+    ring.rotation.x = Math.PI * 0.42
+    ring.rotation.y = Math.PI * 0.12
+    ring.rotation.z = 0.18
     this.scene.add(ring)
   }
 
@@ -443,75 +1229,173 @@ export class SceneRenderer {
     }
     gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gColors, 3))
     gGeo.computeVertexNormals()
+
+    // High-resolution nanite lattice detail multiplied over biome vertex colors
+    const groundDetailTex = createTerrainDetailTexture()
     const groundMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.92,
-      metalness: 0.0
+      map: groundDetailTex,
+      roughness: 0.90,
+      metalness: 0.04
     })
     const ground = new THREE.Mesh(gGeo, groundMat)
     ground.receiveShadow = true
     this.scene.add(ground)
 
-    // 2. Water ponds
+    // 2. Animated water ponds with engineered containment rims & corner beacons
+    this.waterTexture = createWaterTexture()
     const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x1878b8,
-      roughness: 0.1,
-      metalness: 0.4,
+      color: 0x1490d8,
+      map: this.waterTexture,
+      roughness: 0.08,
+      metalness: 0.72,
       transparent: true,
-      opacity: 0.75
+      opacity: 0.82
     })
     const waterPonds = [
-      [80, -75, 38, 26], [10, -88, 22, 16], [90, 45, 28, 20],
-      [70, 80, 24, 18], [-20, 30, 14, 10], [40, -40, 18, 14]
+      [80, -75, 38, 26],
+      [10, -88, 22, 16],
+      [90, 45, 28, 20],
+      [70, 80, 24, 18],
+      [-20, 30, 14, 10],
+      [40, -40, 18, 14]
     ]
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x1e242c,
+      roughness: 0.42,
+      metalness: 0.85
+    })
+    const rimGlowMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.65
+    })
     for (const [wx, wz, ww, wd] of waterPonds) {
       const w = new THREE.Mesh(new THREE.PlaneGeometry(ww, wd), waterMat)
       w.rotation.x = -Math.PI / 2
       w.position.set(wx, 0.08, wz)
       this.scene.add(w)
+
+      // Containment basin curbs
+      const curbThick = 0.6
+      const curbH = 0.35
+      const curbNSGeo = new THREE.BoxGeometry(ww + curbThick * 2, curbH, curbThick)
+      const curbN = new THREE.Mesh(curbNSGeo, rimMat)
+      curbN.position.set(wx, 0.15, wz - wd / 2 - curbThick / 2)
+      const curbS = new THREE.Mesh(curbNSGeo, rimMat)
+      curbS.position.set(wx, 0.15, wz + wd / 2 + curbThick / 2)
+
+      const curbEWGeo = new THREE.BoxGeometry(curbThick, curbH, wd)
+      const curbE = new THREE.Mesh(curbEWGeo, rimMat)
+      curbE.position.set(wx + ww / 2 + curbThick / 2, 0.15, wz)
+      const curbW = new THREE.Mesh(curbEWGeo, rimMat)
+      curbW.position.set(wx - ww / 2 - curbThick / 2, 0.15, wz)
+      this.scene.add(curbN, curbS, curbE, curbW)
+
+      // Corner beacon pylons
+      const beaconGeo = new THREE.BoxGeometry(0.5, 0.6, 0.5)
+      for (const [bx, bz] of [
+        [wx - ww / 2 - curbThick / 2, wz - wd / 2 - curbThick / 2],
+        [wx + ww / 2 + curbThick / 2, wz - wd / 2 - curbThick / 2],
+        [wx - ww / 2 - curbThick / 2, wz + wd / 2 + curbThick / 2],
+        [wx + ww / 2 + curbThick / 2, wz + wd / 2 + curbThick / 2]
+      ]) {
+        const beacon = new THREE.Mesh(beaconGeo, rimGlowMat)
+        beacon.position.set(bx, 0.3, bz)
+        this.scene.add(beacon)
+      }
     }
 
-    // 3. Clean architectural materials for map boxes
+    // 3. Procedural architectural PBR materials for map boxes
+    const texConcrete = createSciFiPanelTexture({
+      baseColor: '#cbd5e1',
+      highlightColor: '#e8eff5',
+      seamColor: '#64748b',
+      rivetColor: '#334155',
+      accentColor: '#00f0ff',
+      label: 'MRD-HUB'
+    })
+    const texDarkAlloy = createSciFiPanelTexture({
+      baseColor: '#303742',
+      highlightColor: '#475262',
+      seamColor: '#171c23',
+      rivetColor: '#0f141a',
+      accentColor: '#38bdf8',
+      ventPlates: true
+    })
+    const texBarren = createSciFiPanelTexture({
+      baseColor: '#967451',
+      highlightColor: '#b8946e',
+      seamColor: '#4d3722',
+      rivetColor: '#2b1c0e',
+      accentColor: '#f59e0b',
+      label: 'MINING-SEC'
+    })
+    const texTerra = createSciFiPanelTexture({
+      baseColor: '#4f7838',
+      highlightColor: '#69994c',
+      seamColor: '#283d1c',
+      rivetColor: '#1a2613',
+      accentColor: '#4ade80',
+      label: 'ECO-ZONE'
+    })
+    const texBlastDoor = createBlastDoorTexture()
+    const texWindows = createCyberWindowTexture()
+    const texRoad = createRoadAsphaltTexture()
+    const texGarden = createGardenTexture()
+    const texHazard = createHazardTexture()
+
     const materials: Record<string, THREE.Material> = {
-      wall: new THREE.MeshStandardMaterial({ color: 0x8290a0, roughness: 0.76, metalness: 0.05 }),
-      house_body: new THREE.MeshStandardMaterial({ color: 0xedf0f2, roughness: 0.75, metalness: 0.02 }), // Light bright concrete
+      wall: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.65, metalness: 0.35 }),
+      house_body: new THREE.MeshStandardMaterial({ map: texConcrete, roughness: 0.72, metalness: 0.08 }),
       house_window: new THREE.MeshStandardMaterial({
-        color: 0x6ab0d8,
-        roughness: 0.10,
-        metalness: 0.22,
-        emissive: 0x3078b0,
-        emissiveIntensity: 0.6
+        map: texWindows.map,
+        emissiveMap: texWindows.emissiveMap,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.78,
+        roughness: 0.12,
+        metalness: 0.45
       }),
-      house_door: new THREE.MeshStandardMaterial({ color: 0x242c38, roughness: 0.3, metalness: 0.2 }),
-      house_chimney: new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.8 }),
-      platform: new THREE.MeshStandardMaterial({ color: 0x9ca8b4, roughness: 0.72, metalness: 0.06 }),
-      garden: new THREE.MeshStandardMaterial({ color: 0x48a02c, roughness: 0.85 }),
-      fountain_base: new THREE.MeshStandardMaterial({ color: 0xb4c2cb, roughness: 0.55, metalness: 0.08 }),
-      fountain_rim: new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.4, emissive: 0x0088aa, emissiveIntensity: 0.4 }),
-      fountain_pillar: new THREE.MeshStandardMaterial({ color: 0x98a8b2, roughness: 0.5 }),
-      bench: new THREE.MeshStandardMaterial({ color: 0x667078, roughness: 0.68, metalness: 0.2 }),
-      lamp_post: new THREE.MeshStandardMaterial({ color: 0x242c36, roughness: 0.42, metalness: 0.65 }),
-      lamp_head: new THREE.MeshStandardMaterial({ color: 0xffea70, emissive: 0xffee40, emissiveIntensity: 1.5 }),
-      bollard: new THREE.MeshStandardMaterial({ color: 0xd8c818, roughness: 0.6, metalness: 0.18 }),
-      path: new THREE.MeshStandardMaterial({ color: 0x424854, roughness: 0.92 }),
-      road_marking: new THREE.MeshStandardMaterial({ color: 0xffea00, roughness: 0.8 }),
+      house_door: new THREE.MeshStandardMaterial({ map: texBlastDoor, roughness: 0.45, metalness: 0.55 }),
+      house_chimney: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.7, metalness: 0.3 }),
+      platform: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.68, metalness: 0.35 }),
+      garden: new THREE.MeshStandardMaterial({ map: texGarden, roughness: 0.75, metalness: 0.05 }),
+      fountain_base: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.55, metalness: 0.4 }),
+      fountain_rim: new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        roughness: 0.3,
+        emissive: 0x0099bb,
+        emissiveIntensity: 0.65
+      }),
+      fountain_pillar: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.5, metalness: 0.4 }),
+      bench: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.55, metalness: 0.45 }),
+      lamp_post: new THREE.MeshStandardMaterial({ color: 0x1e242c, roughness: 0.35, metalness: 0.85 }),
+      lamp_head: new THREE.MeshStandardMaterial({ color: 0xfff088, emissive: 0xffdd44, emissiveIntensity: 2.0 }),
+      bollard: new THREE.MeshStandardMaterial({ map: texHazard, roughness: 0.5, metalness: 0.25 }),
+      path: new THREE.MeshStandardMaterial({ map: texRoad, roughness: 0.88, metalness: 0.1 }),
+      road_marking: new THREE.MeshStandardMaterial({
+        color: 0xffea00,
+        emissive: 0x665500,
+        emissiveIntensity: 0.55,
+        roughness: 0.4
+      }),
 
       // Biome-specific cover & buildings
-      cover_terra: new THREE.MeshStandardMaterial({ color: 0x6ca044, roughness: 0.82 }),
-      cover_barren: new THREE.MeshStandardMaterial({ color: 0xc49a58, roughness: 0.85 }),
-      cover_neutral: new THREE.MeshStandardMaterial({ color: 0x8aa2b4, roughness: 0.72, metalness: 0.08 }),
+      cover_terra: new THREE.MeshStandardMaterial({ map: texTerra, roughness: 0.75, metalness: 0.12 }),
+      cover_barren: new THREE.MeshStandardMaterial({ map: texBarren, roughness: 0.78, metalness: 0.12 }),
+      cover_neutral: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.65, metalness: 0.35 }),
 
-      building_terra: new THREE.MeshStandardMaterial({ color: 0xe0e8ec, roughness: 0.74, metalness: 0.03 }),
-      building_bar: new THREE.MeshStandardMaterial({ color: 0xdcd5b2, roughness: 0.78 }),
-      building_neutral: new THREE.MeshStandardMaterial({ color: 0xa4b0bc, roughness: 0.72 }),
+      building_terra: new THREE.MeshStandardMaterial({ map: texConcrete, roughness: 0.72, metalness: 0.08 }),
+      building_bar: new THREE.MeshStandardMaterial({ map: texBarren, roughness: 0.78, metalness: 0.12 }),
+      building_neutral: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.65, metalness: 0.35 }),
 
-      rand_building: new THREE.MeshStandardMaterial({ color: 0xd0d8e0, roughness: 0.72, metalness: 0.04 }),
+      rand_building: new THREE.MeshStandardMaterial({ map: texConcrete, roughness: 0.72, metalness: 0.08 }),
 
-      pillar_terra: new THREE.MeshStandardMaterial({ color: 0x5a8a3c, roughness: 0.78 }),
-      pillar_barren: new THREE.MeshStandardMaterial({ color: 0xaa7844, roughness: 0.82 }),
-      pillar_neutral: new THREE.MeshStandardMaterial({ color: 0x889aa2, roughness: 0.68, metalness: 0.08 }),
+      pillar_terra: new THREE.MeshStandardMaterial({ map: texTerra, roughness: 0.75, metalness: 0.12 }),
+      pillar_barren: new THREE.MeshStandardMaterial({ map: texBarren, roughness: 0.78, metalness: 0.12 }),
+      pillar_neutral: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.65, metalness: 0.35 }),
 
-      default: new THREE.MeshStandardMaterial({ color: 0x909ea8, roughness: 0.72 })
+      default: new THREE.MeshStandardMaterial({ map: texDarkAlloy, roughness: 0.65, metalness: 0.35 })
     }
 
     const groups = new Map<string, Box[]>()
@@ -551,6 +1435,182 @@ export class SceneRenderer {
       inst.instanceMatrix.needsUpdate = true
       this.scene.add(inst)
     }
+
+    // 4. Central Meridian Hub Holographic Billboards (Lore: Season 3049 Broadcast & Makers)
+    const holo1Tex = createHoloSignTexture({
+      title: 'MERIDIAN CENTRAL HUB',
+      subtitle: 'BROADCAST TRIAL // SEASON 3049',
+      desc: 'ORBITAL RELAY ACTIVE • 11 MAKERS COMPETING',
+      badge: 'OFFICIAL HOST • MERIDIAN CORP',
+      accentColor: '#00f0ff',
+      secondaryColor: '#38bdf8'
+    })
+    const holo2Tex = createHoloSignTexture({
+      title: 'VELA RELAY COMPACT',
+      subtitle: 'WARP LOGISTICS // CORE: TELEPOTU',
+      desc: 'BREAKAWAY FREIGHT ENGINEERS • QUANTUM SWAP',
+      badge: 'MAKER SHOWCASE // LICENSED CORES',
+      accentColor: '#fbbf24',
+      secondaryColor: '#f59e0b'
+    })
+    const holo3Tex = createHoloSignTexture({
+      title: 'KURO RACER SYNDICATE',
+      subtitle: 'CORE: DENJA // OVERDRIVE BURST',
+      desc: '2X VELOCITY • THE CIRCUIT WAITS FOR NO ONE',
+      badge: 'SPEED RECORD HOLDER',
+      accentColor: '#e879f9',
+      secondaryColor: '#c084fc'
+    })
+    const holo4Tex = createHoloSignTexture({
+      title: 'BASTION SIEGE FOUNDRY',
+      subtitle: 'CORE: TANK // BULWARK DOCTRINE',
+      desc: 'HALF DAMAGE ABSORPTION • UNSTOPPABLE',
+      badge: 'MILITARY DEFENSE TECH',
+      accentColor: '#38bdf8',
+      secondaryColor: '#60a5fa'
+    })
+
+    const createBillboard = (tex: THREE.CanvasTexture, w: number, h: number, x: number, y: number, z: number, ry: number) => {
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      })
+      mat.userData.baseOpacity = 0.9
+      this.holoMaterials.push(mat)
+
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat)
+      mesh.position.set(x, y, z)
+      mesh.rotation.y = ry
+      this.scene.add(mesh)
+
+      const frameGeo = new THREE.BoxGeometry(w + 0.4, h + 0.3, 0.08)
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e2633, roughness: 0.4, metalness: 0.8 })
+      const frame = new THREE.Mesh(frameGeo, frameMat)
+      frame.position.set(x, y, z)
+      frame.rotation.y = ry
+      frame.translateZ(-0.08)
+      this.scene.add(frame)
+    }
+
+    // Front (South, facing entrance plaza)
+    createBillboard(holo1Tex, 14, 4.4, 0, 12, 7.9, 0)
+    // Back (North)
+    createBillboard(holo2Tex, 14, 4.4, 0, 12, -7.9, Math.PI)
+    // East
+    createBillboard(holo3Tex, 10, 4.4, 10.35, 12, 0, Math.PI / 2)
+    // West
+    createBillboard(holo4Tex, 10, 4.4, -10.35, 12, 0, -Math.PI / 2)
+
+    // 5. Roof Communications Spire & Aviation Beacon on Central Meridian Hub
+    const spireGroup = new THREE.Group()
+    spireGroup.position.set(0, 19.65, 0)
+
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.4, 1.2, 8), materials.platform)
+    pedestal.position.set(0, 0.6, 0)
+    spireGroup.add(pedestal)
+
+    const mast = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.35, 14, 8),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.3, metalness: 0.9 })
+    )
+    mast.position.set(0, 8.2, 0)
+    spireGroup.add(mast)
+
+    for (const y of [4.0, 7.0, 10.0, 13.0]) {
+      const arm1 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.12), materials.platform)
+      arm1.position.set(0, y, 0)
+      const arm2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 2.4), materials.platform)
+      arm2.position.set(0, y, 0)
+      spireGroup.add(arm1, arm2)
+    }
+
+    const dish = new THREE.Mesh(
+      new THREE.ConeGeometry(2.2, 0.9, 16, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.85, side: THREE.DoubleSide })
+    )
+    dish.position.set(0, 8.5, 0.6)
+    dish.rotation.x = -Math.PI * 0.35
+    dish.rotation.y = Math.PI * 0.1
+    spireGroup.add(dish)
+
+    const beaconGeo = new THREE.SphereGeometry(0.35, 8, 8)
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff2244 })
+    const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat)
+    beaconMesh.position.set(0, 15.3, 0)
+    spireGroup.add(beaconMesh)
+
+    this.towerBeacon = new THREE.PointLight(0xff2244, 3.5, 55, 1.6)
+    this.towerBeacon.position.set(0, 35.0, 0)
+    this.scene.add(this.towerBeacon)
+    this.scene.add(spireGroup)
+
+    // 6. Courtyard First-Chassis Memorial Shrine (Lore: sacred marked soil of first remote link)
+    this.courtyardShrine = new THREE.Group()
+    this.courtyardShrine.position.set(0, 3.8, 17)
+
+    const shrinePyramidGeo = new THREE.ConeGeometry(0.8, 1.2, 4)
+    const shrinePyramidMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x0099bb,
+      emissiveIntensity: 0.85,
+      roughness: 0.12,
+      metalness: 0.9
+    })
+    const shrinePyramid = new THREE.Mesh(shrinePyramidGeo, shrinePyramidMat)
+    shrinePyramid.rotation.x = Math.PI
+    this.courtyardShrine.add(shrinePyramid)
+
+    const shrineHeart = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+    )
+    this.courtyardShrine.add(shrineHeart)
+
+    const ring1 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.35, 0.022, 8, 36),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.75 })
+    )
+    ring1.rotation.x = Math.PI * 0.28
+    ring1.rotation.y = Math.PI * 0.15
+    this.courtyardShrine.add(ring1)
+
+    const ring2 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.1, 0.02, 8, 36),
+      new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.65 })
+    )
+    ring2.rotation.x = -Math.PI * 0.32
+    ring2.rotation.z = Math.PI * 0.25
+    this.courtyardShrine.add(ring2)
+
+    const shrineLight = new THREE.PointLight(0x00f0ff, 2.8, 18, 1.6)
+    this.courtyardShrine.add(shrineLight)
+    this.scene.add(this.courtyardShrine)
+
+    // 7. Streetlamp Point Lights & Plaza Entrance Lighting
+    const lampCoords: [number, number, number][] = [
+      [-4, 30, 1],
+      [4, 30, -1],
+      [-4, 57, 1],
+      [4, 57, -1],
+      [-4, -30, 1],
+      [4, -30, -1],
+      [-4, -57, 1],
+      [4, -57, -1]
+    ]
+    for (const [lx, lz, arm] of lampCoords) {
+      const lampLight = new THREE.PointLight(0xffdf80, 2.2, 24, 1.8)
+      lampLight.position.set(lx + arm * 2.5, 9.2, lz)
+      this.scene.add(lampLight)
+      this.streetlampLights.push(lampLight)
+    }
+
+    this.plazaLight = new THREE.PointLight(0x00f0ff, 3.2, 28, 1.6)
+    this.plazaLight.position.set(0, 5.2, 11.5)
+    this.scene.add(this.plazaLight)
   }
 
   updatePlayers(players: PlayerState[], localPlayerId: number) {
@@ -1338,6 +2398,32 @@ export class SceneRenderer {
       }
     }
 
+    // Environmental graphics animations
+    if (this.waterTexture) {
+      this.waterTexture.offset.x = (this.waterTexture.offset.x + dt * 0.02) % 1
+      this.waterTexture.offset.y = (this.waterTexture.offset.y + dt * 0.015) % 1
+    }
+
+    if (this.holoMaterials.length > 0) {
+      const holoPulse = 0.84 + 0.16 * Math.sin(this.shieldTime * 2.8)
+      for (const m of this.holoMaterials) {
+        m.opacity = (m.userData.baseOpacity ?? 0.9) * holoPulse
+      }
+    }
+
+    if (this.courtyardShrine) {
+      this.courtyardShrine.rotation.y += dt * 0.75
+      this.courtyardShrine.position.y = 3.8 + Math.sin(this.shieldTime * 2.0) * 0.09
+    }
+
+    if (this.towerBeacon) {
+      this.towerBeacon.intensity = Math.sin(this.shieldTime * 6) > 0.35 ? 3.5 : 0.2
+    }
+
+    if (this.boreasPlanet) {
+      this.boreasPlanet.rotation.y += dt * 0.008
+    }
+
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -1351,6 +2437,12 @@ export class SceneRenderer {
       this.scene.remove(s.mesh)
     }
     this.sparks = []
+    for (const l of this.streetlampLights) {
+      this.scene.remove(l)
+    }
+    this.streetlampLights = []
+    if (this.plazaLight) this.scene.remove(this.plazaLight)
+    if (this.towerBeacon) this.scene.remove(this.towerBeacon)
     this.renderer.dispose()
   }
 }
