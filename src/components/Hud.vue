@@ -110,16 +110,23 @@ const rPercent = computed(() => {
   return props.player.health >= 81 ? 100 : Math.max(0, (props.player.health / 80) * 100)
 })
 
-// C Crouch / Hull Fabrication Timer
-const cTimeRemaining = computed(() => {
+// Nanite Regeneration Timer: receiving damage halts regen for 7 seconds, then instant full hull
+const regenCooldownRemaining = computed(() => {
   if (props.player.health >= CFG.MAX_HEALTH) return 0
-  const needed = CFG.MAX_HEALTH - props.player.health
-  const rate = props.player.crouching ? CFG.REGEN_RATE * 3 : CFG.REGEN_RATE
-  return Math.max(0, needed / rate)
+  const lastDmg = props.player.lastDamageAt || 0
+  const elapsed = (currentTime.value - lastDmg) / 1000
+  const cooldownSec = CFG.REGEN_DELAY / 1000
+  return Math.max(0, cooldownSec - elapsed)
+})
+
+const cTimeRemaining = computed(() => {
+  return regenCooldownRemaining.value
 })
 
 const cPercent = computed(() => {
-  return Math.min(100, Math.max(0, (props.player.health / CFG.MAX_HEALTH) * 100))
+  if (props.player.health >= CFG.MAX_HEALTH) return 100
+  const elapsed = (CFG.REGEN_DELAY / 1000) - regenCooldownRemaining.value
+  return Math.min(100, Math.max(0, (elapsed / (CFG.REGEN_DELAY / 1000)) * 100))
 })
 </script>
 
@@ -229,6 +236,9 @@ const cPercent = computed(() => {
       <div class="hull-container">
         <div class="hull-header">
           <span class="hull-title">RX-11 NANITE CENSUS</span>
+          <span v-if="regenCooldownRemaining > 0" class="hull-regen-badge">
+            REGEN IN {{ regenCooldownRemaining.toFixed(1) }}s
+          </span>
           <span class="hull-val">{{ Math.ceil(player.health) }} / {{ CFG.MAX_HEALTH }}</span>
         </div>
         <div class="hull-track">
@@ -376,7 +386,7 @@ const cPercent = computed(() => {
             <div class="action-info">
               <span class="action-name">CROUCH</span>
               <span class="action-status">
-                {{ player.crouching ? (cTimeRemaining > 0 ? `${cTimeRemaining.toFixed(1)}s (3× REGEN)` : 'FULL HULL') : 'STAND' }}
+                {{ cTimeRemaining > 0 ? `${cTimeRemaining.toFixed(1)}s (7s CALM)` : 'FULL HULL' }}
               </span>
             </div>
           </div>
@@ -652,6 +662,18 @@ const cPercent = computed(() => {
 .hull-title {
   color: rgba(255, 255, 255, 0.7);
   letter-spacing: 1px;
+}
+
+.hull-regen-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f59e0b;
+  letter-spacing: 0.05em;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 1px 7px;
+  border-radius: 4px;
 }
 
 .hull-val {

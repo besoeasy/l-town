@@ -13,8 +13,8 @@ export const CFG = {
   CROUCH_EYE_HEIGHT: 0.85,
   AUTO_CROUCH_MS: 5000,     // Auto-crouch after 5s of no movement
   MAX_HEALTH: 500,          // Hull = nanite census (lore.md:23)
-  REGEN_DELAY: 2000,        // Calm period before hull regen starts
-  REGEN_RATE: 2,            // 2 nanites regenerated per second (base)
+  REGEN_DELAY: 7000,        // Receiving damage stops hull regen for 7 seconds (calm period)
+  REGEN_RATE: 500,          // Instant nanite reconstruction to full hull when calm period completes
   SHOT_COST_SINGLE: 2,      // Nanite mass spent per single shot
   CHARGE_MAX: 4,            // Max charge shot bursts
   SUPER_COST: 50,           // Nanite mass spent to trigger Super overclock

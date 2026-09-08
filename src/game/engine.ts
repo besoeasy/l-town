@@ -157,7 +157,8 @@ export class GameEngine {
       shieldActive: false,
       shieldEnd: 0,
       invisible: false,
-      lastAbilityAt: 0
+      lastAbilityAt: 0,
+      lastDamageAt: 0
     }
     this.players.set(1, this.localPlayer)
 
@@ -608,8 +609,13 @@ export class GameEngine {
       dmg *= 0.5
     }
 
+    const now = Date.now()
     target.health -= dmg
     target.respawnAt = 0
+    target.lastDamageAt = now
+    if (target.id === this.localPlayer.id) {
+      this.lastHitTime = now
+    }
 
     const shooter = this.players.get(shooterId)
     const hitConfirm = {
@@ -853,9 +859,14 @@ export class GameEngine {
         continue
       }
 
-      if (now - (p.id === 1 ? this.lastHitTime : 0) > CFG.REGEN_DELAY) {
-        const rate = (p.crouching ? 3 : 1) * CFG.REGEN_RATE * dt
-        p.health = Math.min(CFG.MAX_HEALTH, p.health + rate)
+      // Nanite Regeneration: receiving damage stops regen for 7 seconds.
+      // Once 7 seconds of calm pass without receiving damage, nanite regen is instant to full hull.
+      const lastDmg = p.lastDamageAt ?? (p.id === 1 ? this.lastHitTime : 0)
+      if (p.health < CFG.MAX_HEALTH && now - lastDmg >= CFG.REGEN_DELAY) {
+        p.health = CFG.MAX_HEALTH
+        if (p.id === this.localPlayer.id) {
+          sound.playCachePickup()
+        }
       }
 
       if (p.superActive && now > p.superEnd) p.superActive = false
@@ -1239,6 +1250,9 @@ export class GameEngine {
       }
     } else if (msg.type === 'hit') {
       sound.playHit()
+      const now = Date.now()
+      this.lastHitTime = now
+      this.localPlayer.lastDamageAt = now
       this.callbacks.onHit(msg.amount)
     } else if (msg.type === 'hitConfirm') {
       sound.playHitConfirm(msg.killed)

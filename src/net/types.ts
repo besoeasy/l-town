@@ -20,6 +20,7 @@ export interface PlayerState {
   shieldEnd: number
   invisible: boolean
   lastAbilityAt: number
+  lastDamageAt?: number
   isBot?: boolean
   ping?: number
 }

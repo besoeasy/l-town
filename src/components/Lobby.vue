@@ -171,7 +171,7 @@ const handleJoinInput = () => {
                 <li><kbd>E</kbd> — Super Overclock (-50 Hull, 3× Damage)</li>
                 <li><kbd>R</kbd> — Nanite Barrier (-80 Hull, 10s Immunity)</li>
                 <li><kbd>SPACE</kbd> — Jump (Hold Shift for Super Jump)</li>
-                <li><kbd>C</kbd> — Crouch (Triggers 3× Hull Regeneration)</li>
+                <li><kbd>C</kbd> — Crouch / Take Cover</li>
                 <li><kbd>TAB</kbd> / <kbd>F</kbd> — Meridian Leaderboard</li>
               </ul>
             </div>
@@ -182,7 +182,7 @@ const handleJoinInput = () => {
                 <strong>RX-11</strong> humanoid nanite swarms.
               </p>
               <p>
-                <strong>Hull is Ammunition:</strong> Every shot, jump, shield, and ability drains nanites from your chassis. Standing still or crouching shifts core cycles to matter fabrication.
+                <strong>Hull is Ammunition:</strong> Every shot, jump, shield, and ability drains nanites from your chassis. Surviving 7 seconds without taking damage triggers instant full-hull nanite reconstruction.
               </p>
               <p>
                 <strong>Fair Charter:</strong> All chassis share identical hitboxes, speeds, and costs. Only your Atma Core soul pattern determines your unique Q ability.
