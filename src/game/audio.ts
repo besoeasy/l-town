@@ -114,6 +114,37 @@ class SoundEngine {
     }
   }
 
+  playCachePickup() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    // Nanite Cache Salvage Chime: dual ascending harmonic burst (D5 -> A5 -> E6)
+    const notes = [
+      { f: 587.3, dur: 0.10, delay: 0 },
+      { f: 880.0, dur: 0.12, delay: 0.05 },
+      { f: 1318.5, dur: 0.22, delay: 0.10 }
+    ]
+
+    for (const note of notes) {
+      const osc = this.ctx.createOscillator()
+      const gain = this.ctx.createGain()
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(note.f, now + note.delay)
+      osc.frequency.exponentialRampToValueAtTime(note.f * 1.05, now + note.delay + note.dur)
+
+      gain.gain.setValueAtTime(0.22, now + note.delay)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + note.delay + note.dur)
+
+      osc.connect(gain)
+      gain.connect(this.ctx.destination)
+
+      osc.start(now + note.delay)
+      osc.stop(now + note.delay + note.dur)
+    }
+  }
+
   playSuper() {
     this.init()
     if (!this.ctx) return

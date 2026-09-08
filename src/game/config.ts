@@ -20,7 +20,8 @@ export const CFG = {
   SUPER_COST: 50,           // Nanite mass spent to trigger Super overclock
   SUPER_DURATION: 10000,    // 10s Super duration
   RESPAWN_DELAY: 7000,      // 7s reprint delay
-  KILL_BONUS_HP: 100,       // Nanite bonus awarded on frag
+  NANITE_CACHE_AMOUNT: 100, // Nanite cache dropped on death
+  NANITE_CACHE_RADIUS: 5.0, // Pickup radius in world units
   JUMP_SPEED: 18,           // Base vertical jump velocity
   GRAVITY: 32,              // Gravity units/sec^2
   SUPER_JUMP_SPEED: 44,     // High jump velocity (~10x height)

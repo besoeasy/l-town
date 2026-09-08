@@ -4,7 +4,7 @@ import { createBoxGrid, resolveCollision, raycastPlayers } from './physics'
 import { spawnBots, tickBots } from './bots'
 import { sound } from './audio'
 import type { SceneRenderer } from './scene'
-import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg, TelemetryData, MatchResults } from '../net/types'
+import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg, TelemetryData, MatchResults, NaniteCache, CachePickupMsg } from '../net/types'
 import { P2PHost, P2PClient } from '../net/webrtc'
 
 export type GameMode = 'solo' | 'host' | 'client'
@@ -19,6 +19,7 @@ export interface GameCallbacks {
   onHit: (amount: number) => void
   onHitConfirm: (msg: HitConfirmMsg) => void
   onKill: (msg: KillMsg) => void
+  onCachePickup?: (amount: number) => void
   onLeaderboardUpdate: (leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]) => void
   onMatchEnd: (results: MatchResults) => void
 }
@@ -65,6 +66,8 @@ export class GameEngine {
   public isGameOver = false
   public ping = 0
   public fps = 60
+  public naniteCaches = new Map<number, NaniteCache>()
+  private nextCacheId = 1
 
   private pendingSpawns = new Map<number, { x: number; y: number; z: number; yaw: number }>()
   private keys: Record<string, boolean> = {}
@@ -602,8 +605,11 @@ export class GameEngine {
 
       if (shooter) {
         shooter.score++
-        shooter.health = Math.min(CFG.MAX_HEALTH, shooter.health + CFG.KILL_BONUS_HP)
       }
+
+      // Drop loose nanite cache (100 mass) at death coordinates for salvage
+      const cacheY = Math.max(groundHeight(target.x, target.z, this.map.seed), target.y) + 0.8
+      this.spawnNaniteCache(target.x, cacheY, target.z, CFG.NANITE_CACHE_AMOUNT)
 
       const killMsg: KillMsg = {
         type: 'kill',
@@ -631,6 +637,33 @@ export class GameEngine {
 
       if (this.host) {
         this.host.broadcast(killMsg)
+      }
+    }
+  }
+
+  public spawnNaniteCache(x: number, y: number, z: number, amount: number): NaniteCache {
+    const id = this.nextCacheId++
+    const cache: NaniteCache = { id, x, y, z, amount }
+    this.naniteCaches.set(id, cache)
+    this.scene.addNaniteCache(cache)
+    return cache
+  }
+
+  public syncNaniteCaches(remoteCaches: NaniteCache[]) {
+    const currentIds = new Set(this.naniteCaches.keys())
+    const remoteIds = new Set(remoteCaches.map(c => c.id))
+
+    for (const rc of remoteCaches) {
+      if (!this.naniteCaches.has(rc.id)) {
+        this.naniteCaches.set(rc.id, rc)
+        this.scene.addNaniteCache(rc)
+      }
+    }
+
+    for (const id of currentIds) {
+      if (!remoteIds.has(id)) {
+        this.naniteCaches.delete(id)
+        this.scene.removeNaniteCache(id, false)
       }
     }
   }
@@ -663,7 +696,7 @@ export class GameEngine {
             this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5 * rageMult, bot.id)
           }
         }
-      })
+      }, [...this.naniteCaches.values()])
     }
 
     // Health regen for players
@@ -703,6 +736,48 @@ export class GameEngine {
       if (p.shieldActive && now > p.shieldEnd) p.shieldActive = false
     }
 
+    // Nanite cache pickup checks: closest alive shell within 5u radius siphons mass
+    if (this.naniteCaches.size > 0) {
+      const alivePlayers = [...this.players.values()].filter(p => p.alive)
+      for (const [id, cache] of [...this.naniteCaches.entries()]) {
+        let closestPlayer: PlayerState | null = null
+        let closestDist = Infinity
+
+        for (const p of alivePlayers) {
+          const py = p.y + CFG.PLAYER_HEIGHT * 0.5
+          const dist = Math.hypot(p.x - cache.x, py - cache.y, p.z - cache.z)
+          if (dist <= CFG.NANITE_CACHE_RADIUS && dist < closestDist) {
+            closestDist = dist
+            closestPlayer = p
+          }
+        }
+
+        if (closestPlayer) {
+          closestPlayer.health = Math.min(CFG.MAX_HEALTH, closestPlayer.health + cache.amount)
+          this.naniteCaches.delete(id)
+          this.scene.removeNaniteCache(id, true)
+
+          if (closestPlayer.id === this.localPlayer.id) {
+            sound.playCachePickup()
+            this.callbacks.onCachePickup?.(cache.amount)
+          }
+
+          if (this.host) {
+            const pickupMsg: CachePickupMsg = {
+              type: 'cachePickup',
+              cacheId: id,
+              pickerId: closestPlayer.id,
+              amount: cache.amount,
+              x: cache.x,
+              y: cache.y,
+              z: cache.z
+            }
+            this.host.broadcast(pickupMsg)
+          }
+        }
+      }
+    }
+
     // Update leaderboard & HVT
     const ranked = [...this.players.values()].sort((a, b) => b.score - a.score)
     const leaderboard = ranked.slice(0, 5).map(p => ({
@@ -729,7 +804,8 @@ export class GameEngine {
         aliveCount: [...this.players.values()].filter(p => p.alive).length,
         highValueTargetId: hvt?.id || null,
         leaderboard,
-        players: [...this.players.values()]
+        players: [...this.players.values()],
+        naniteCaches: [...this.naniteCaches.values()]
       }
       this.host.broadcast(stateMsg)
     }
@@ -980,7 +1056,17 @@ export class GameEngine {
           this.players.set(p.id, p)
         }
       }
+      if (msg.naniteCaches) {
+        this.syncNaniteCaches(msg.naniteCaches)
+      }
       this.callbacks.onLeaderboardUpdate(msg.leaderboard)
+    } else if (msg.type === 'cachePickup') {
+      this.naniteCaches.delete(msg.cacheId)
+      this.scene.removeNaniteCache(msg.cacheId, true)
+      if (msg.pickerId === this.localPlayer.id) {
+        sound.playCachePickup()
+        this.callbacks.onCachePickup?.(msg.amount)
+      }
     } else if (msg.type === 'hit') {
       sound.playHit()
       this.callbacks.onHit(msg.amount)
@@ -1130,6 +1216,7 @@ export class GameEngine {
     if (this.pingInterval) clearInterval(this.pingInterval)
     sound.stopFootsteps()
     sound.stopRecharge()
+    this.naniteCaches.clear()
     this.scene.destroy()
     this.host?.destroy()
     this.client?.destroy()

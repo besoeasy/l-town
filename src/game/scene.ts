@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
 import type { MapData, Box } from './map'
 import { groundHeight } from './map'
-import type { PlayerState } from '../net/types'
+import type { PlayerState, NaniteCache } from '../net/types'
 import { CFG, CORE_DETAILS } from './config'
 
 /**
@@ -886,6 +886,13 @@ export class SceneRenderer {
   private shieldTime = 0
   private projectiles: { mesh: THREE.Group; vel: THREE.Vector3; dist: number; maxDist: number }[] = []
   private sparks: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number }[] = []
+  private naniteCacheMeshes = new Map<number, {
+    group: THREE.Group
+    coreMesh: THREE.Mesh
+    ringMesh: THREE.Mesh
+    baseY: number
+    phase: number
+  }>()
 
   // Environmental graphics & animated elements
   private waterTexture?: THREE.CanvasTexture
@@ -2290,6 +2297,97 @@ export class SceneRenderer {
     }
   }
 
+  addNaniteCache(cache: NaniteCache) {
+    if (this.naniteCacheMeshes.has(cache.id)) return
+
+    const group = new THREE.Group()
+    group.position.set(cache.x, cache.y, cache.z)
+
+    // 1. Nanite Octahedron Crystal Core (Golden-Amber glow from lore)
+    const coreGeo = new THREE.OctahedronGeometry(0.38, 0)
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: 0xff7700,
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.4,
+      roughness: 0.25,
+      metalness: 0.85
+    })
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat)
+    group.add(coreMesh)
+
+    // 2. Outer rotating nanite containment ring
+    const ringGeo = new THREE.TorusGeometry(0.58, 0.032, 8, 24)
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xffd044,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    })
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat)
+    ringMesh.rotation.x = Math.PI / 3
+    group.add(ringMesh)
+
+    // 3. Ground 5u salvage boundary projection (visualizes the 5u pickup zone)
+    const fieldGeo = new THREE.RingGeometry(4.88, 5.0, 32)
+    const fieldMat = new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+    const fieldMesh = new THREE.Mesh(fieldGeo, fieldMat)
+    fieldMesh.rotation.x = -Math.PI / 2
+    fieldMesh.position.y = -0.75
+    group.add(fieldMesh)
+
+    // 4. Subtle vertical beacon beam
+    const beamGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8)
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending
+    })
+    const beamMesh = new THREE.Mesh(beamGeo, beamMat)
+    beamMesh.position.y = 1.25
+    group.add(beamMesh)
+
+    this.scene.add(group)
+    this.naniteCacheMeshes.set(cache.id, {
+      group,
+      coreMesh,
+      ringMesh,
+      baseY: cache.y,
+      phase: Math.random() * Math.PI * 2
+    })
+  }
+
+  removeNaniteCache(id: number, withSparks = true) {
+    const c = this.naniteCacheMeshes.get(id)
+    if (!c) return
+
+    if (withSparks) {
+      this.spawnImpactSparks(c.group.position, 0xffaa00)
+    }
+
+    this.scene.remove(c.group)
+    c.group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry?.dispose()
+        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose())
+        else obj.material?.dispose()
+      }
+    })
+    this.naniteCacheMeshes.delete(id)
+  }
+
+  clearNaniteCaches() {
+    for (const [id] of this.naniteCacheMeshes) {
+      this.removeNaniteCache(id, false)
+    }
+  }
+
   render(dt: number, isMoving = false, superActive = false, shieldActive = false) {
     for (const c of this.clouds) {
       c.position.x += (c.userData as any).driftX * dt * 4
@@ -2424,11 +2522,21 @@ export class SceneRenderer {
       this.boreasPlanet.rotation.y += dt * 0.008
     }
 
+    // Animate Nanite Caches (spin & floating bob)
+    for (const [, c] of this.naniteCacheMeshes) {
+      c.coreMesh.rotation.y += dt * 2.2
+      c.coreMesh.rotation.x += dt * 1.1
+      c.ringMesh.rotation.z -= dt * 2.8
+      c.ringMesh.rotation.y += dt * 1.4
+      c.group.position.y = c.baseY + Math.sin(this.shieldTime * 3.2 + c.phase) * 0.14
+    }
+
     this.renderer.render(this.scene, this.camera)
   }
 
   destroy() {
     window.removeEventListener('resize', this.onResize)
+    this.clearNaniteCaches()
     for (const p of this.projectiles) {
       this.scene.remove(p.mesh)
     }

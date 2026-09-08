@@ -24,6 +24,14 @@ export interface PlayerState {
   ping?: number
 }
 
+export interface NaniteCache {
+  id: number
+  x: number
+  y: number
+  z: number
+  amount: number
+}
+
 export interface GameStateMsg {
   type: 'gameState'
   tick: number
@@ -33,6 +41,7 @@ export interface GameStateMsg {
   highValueTargetId: number | null
   leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]
   players: PlayerState[]
+  naniteCaches?: NaniteCache[]
 }
 
 export interface InputMsg {
@@ -119,6 +128,16 @@ export interface TeleportedMsg {
   targetName: string
 }
 
+export interface CachePickupMsg {
+  type: 'cachePickup'
+  cacheId: number
+  pickerId: number
+  amount: number
+  x: number
+  y: number
+  z: number
+}
+
 export interface WelcomeMsg {
   type: 'welcome'
   playerId: number
@@ -182,6 +201,7 @@ export type NetMessage =
   | HitConfirmMsg
   | KillMsg
   | TeleportedMsg
+  | CachePickupMsg
   | WelcomeMsg
   | JoinMsg
   | PingMsg

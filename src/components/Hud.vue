@@ -9,6 +9,7 @@ const props = defineProps<{
   killFeed: KillMsg[]
   hitFlash: boolean
   hitConfirm: { show: boolean; amount: number; killed: boolean }
+  cachePopup?: { show: boolean; amount: number }
   telemetry?: TelemetryData
   p2pStatus?: string
   roomCode?: string
@@ -216,6 +217,9 @@ const cPercent = computed(() => {
       </div>
       <div v-if="hitConfirm.show" class="damage-popup" :class="{ 'kill-popup': hitConfirm.killed }">
         {{ hitConfirm.killed ? 'FRAG!' : `-${hitConfirm.amount}` }}
+      </div>
+      <div v-if="cachePopup?.show" class="cache-popup">
+        +{{ cachePopup.amount }} NANITES RECLAIMED
       </div>
     </div>
 
@@ -576,6 +580,46 @@ const cPercent = computed(() => {
 .damage-popup.kill-popup {
   color: #ffcc00;
   font-size: 22px;
+}
+
+.cache-popup {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Space Grotesk', monospace;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fbbf24;
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.9);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.5px solid #f59e0b;
+  border-radius: 8px;
+  padding: 5px 16px;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.45);
+  animation: cacheFloat 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes cacheFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 15px) scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.05);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -18px) scale(0.95);
+  }
 }
 
 .hud-bottom {

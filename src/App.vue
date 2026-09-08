@@ -38,6 +38,7 @@ const hvtId = ref<number | null>(null)
 const killFeed = ref<KillMsg[]>([])
 const hitFlash = ref(false)
 const hitConfirm = ref({ show: false, amount: 0, killed: false })
+const cachePopup = ref({ show: false, amount: 0 })
 const showScoreboard = ref(false)
 const isGameOver = ref(false)
 const p2pStatus = ref('')
@@ -231,6 +232,10 @@ const initEngine = (seed: number, mode: 'solo' | 'host' | 'client') => {
       onKill: (msg: KillMsg) => {
         killFeed.value.unshift(msg)
         if (killFeed.value.length > 5) killFeed.value.pop()
+      },
+      onCachePickup: (amount: number) => {
+        cachePopup.value = { show: true, amount }
+        setTimeout(() => { cachePopup.value.show = false }, 1200)
       },
       onLeaderboardUpdate: (lb) => {
         leaderboard.value = lb
@@ -689,6 +694,7 @@ const handleSignalSubmit = (val: string) => {
       :kill-feed="killFeed"
       :hit-flash="hitFlash"
       :hit-confirm="hitConfirm"
+      :cache-popup="cachePopup"
       :telemetry="telemetry"
       :p2p-status="p2pStatus"
       :room-code="currentRoomCode"

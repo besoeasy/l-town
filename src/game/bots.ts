@@ -1,7 +1,7 @@
 import { CFG, type CoreId, CORE_IDS } from './config'
 import type { MapData } from './map'
 import { groundHeight } from './map'
-import type { PlayerState } from '../net/types'
+import type { PlayerState, NaniteCache } from '../net/types'
 import { resolveCollision } from './physics'
 
 export function spawnBots(count: number, map: MapData): PlayerState[] {
@@ -41,7 +41,8 @@ export function tickBots(
   map: MapData,
   nearby: (x: number, z: number) => any[],
   dt: number,
-  onBotShoot?: (bot: PlayerState, target: { id: number; x: number; y: number; z: number }) => void
+  onBotShoot?: (bot: PlayerState, target: { id: number; x: number; y: number; z: number }) => void,
+  caches?: NaniteCache[]
 ) {
   const now = Date.now()
   for (const bot of bots) {
@@ -59,6 +60,19 @@ export function tickBots(
       continue
     }
 
+    // Check for nearby dropped nanite caches to scavenge if damaged
+    let nearestCache: NaniteCache | null = null
+    if (caches && caches.length > 0 && bot.health < CFG.MAX_HEALTH) {
+      let minCacheDist = 30
+      for (const c of caches) {
+        const d = Math.hypot(c.x - bot.x, c.z - bot.z)
+        if (d < minCacheDist) {
+          minCacheDist = d
+          nearestCache = c
+        }
+      }
+    }
+
     // Find nearest alive enemy target
     let nearest: { id: number; x: number; y: number; z: number } | null = null
     let minDist = Infinity
@@ -71,7 +85,18 @@ export function tickBots(
       }
     }
 
-    if (nearest && minDist < 60) {
+    // If critically damaged and a cache is nearby, prioritize salvaging the cache
+    if (nearestCache && (bot.health < 250 || !nearest || minDist > 25)) {
+      const dx = nearestCache.x - bot.x
+      const dz = nearestCache.z - bot.z
+      const desiredYaw = Math.atan2(-dx, -dz)
+      bot.yaw += (desiredYaw - bot.yaw) * 0.25
+      const mx = -Math.sin(bot.yaw) * CFG.PLAYER_SPEED * 0.9 * dt
+      const mz = -Math.cos(bot.yaw) * CFG.PLAYER_SPEED * 0.9 * dt
+      const col = resolveCollision(bot.x + mx, bot.y, bot.z + mz, map, nearby)
+      bot.x = col.x
+      bot.z = col.z
+    } else if (nearest && minDist < 60) {
       // Aim at target
       const dx = nearest.x - bot.x
       const dz = nearest.z - bot.z
@@ -99,6 +124,17 @@ export function tickBots(
       if (Math.random() < 0.04 && onBotShoot) {
         onBotShoot(bot, nearest)
       }
+    } else if (nearestCache) {
+      // No combat target, navigate to scavenge cache
+      const dx = nearestCache.x - bot.x
+      const dz = nearestCache.z - bot.z
+      const desiredYaw = Math.atan2(-dx, -dz)
+      bot.yaw += (desiredYaw - bot.yaw) * 0.15
+      const mx = -Math.sin(bot.yaw) * CFG.PLAYER_SPEED * 0.6 * dt
+      const mz = -Math.cos(bot.yaw) * CFG.PLAYER_SPEED * 0.6 * dt
+      const col = resolveCollision(bot.x + mx, bot.y, bot.z + mz, map, nearby)
+      bot.x = col.x
+      bot.z = col.z
     } else {
       // Idle wander
       bot.yaw += (Math.random() - 0.5) * 0.1
