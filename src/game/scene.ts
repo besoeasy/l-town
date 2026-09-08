@@ -871,12 +871,14 @@ export class SceneRenderer {
   private lastMorphTarget = 0
   private timeSinceShot = 99
   private fingerGroups: THREE.Group[] = []
+  private fingerDistalGroups: THREE.Group[] = []
   private fingerHandRotX: number[] = []
   private fingerBlasterRotX: number[] = []
   private fingerBaseX: number[] = []
   private blasterBarrel!: THREE.Group
   private blasterCore!: THREE.Mesh
-  private thumbMesh!: THREE.Mesh
+  private thumbBaseGroup!: THREE.Group
+  private thumbDistalGroup!: THREE.Group
   private readonly morphDim = new THREE.Color(0x1e4a52)
   private firstPersonShield!: THREE.Group
   // Kinetic shield FX state (cosmetic): fade in/out, pulse clock, hit flash
@@ -950,123 +952,271 @@ export class SceneRenderer {
     this.robotArm.rotation.set(0.05, -0.06, -0.04)
 
     const armMetalMat = new THREE.MeshStandardMaterial({
-      color: 0x1e242e,
-      roughness: 0.35,
+      color: 0x181e26,
+      roughness: 0.32,
+      metalness: 0.88
+    })
+    const armCarapaceMat = new THREE.MeshStandardMaterial({
+      color: 0x222b38,
+      roughness: 0.28,
       metalness: 0.85
     })
     const armJointMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.25,
+      color: 0x5a6878,
+      roughness: 0.18,
       metalness: 0.95
+    })
+    const chromePinMat = new THREE.MeshStandardMaterial({
+      color: 0x8a99a8,
+      roughness: 0.12,
+      metalness: 0.98
+    })
+    const accentGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xd49b38,
+      roughness: 0.3,
+      metalness: 0.9
     })
     this.armConduitMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
     this.armCoreMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff })
 
-    // Forearm main sleeve
-    const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.34), armMetalMat)
+    // 1. Sleek Tapered Forearm Chassis (8-sided faceted profile instead of flat box)
+    const sleeveGeo = new THREE.CylinderGeometry(0.046, 0.058, 0.32, 8)
+    const sleeve = new THREE.Mesh(sleeveGeo, armMetalMat)
+    sleeve.rotation.x = Math.PI / 2
+    sleeve.scale.set(1.15, 0.85, 1.0)
     sleeve.position.set(0, 0, 0.12)
     this.robotArm.add(sleeve)
 
-    // Top armor plate
-    const topPlate = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.025, 0.28), armJointMat)
-    topPlate.position.set(0, 0.055, 0.11)
-    this.robotArm.add(topPlate)
+    // Dorsal armor carapace
+    const dorsalCarapace = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.016, 0.26), armCarapaceMat)
+    dorsalCarapace.position.set(0, 0.046, 0.12)
+    this.robotArm.add(dorsalCarapace)
 
-    // Glowing energy conduits along forearm
-    const conduitGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.32, 8)
+    // Lateral heat-sink cooling fins on forearm flanks
+    for (let f = -1; f <= 1; f += 2) {
+      for (let i = 0; i < 3; i++) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.018, 0.04), armJointMat)
+        fin.position.set(f * 0.056, 0.01, 0.05 + i * 0.06)
+        this.robotArm.add(fin)
+      }
+    }
+
+    // Glowing energy conduits recessed into channels along forearm
+    const conduitGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.28, 8)
     const leftConduit = new THREE.Mesh(conduitGeo, this.armConduitMat)
     leftConduit.rotation.x = Math.PI / 2
-    leftConduit.position.set(-0.045, 0.045, 0.12)
+    leftConduit.position.set(-0.034, 0.048, 0.12)
     this.robotArm.add(leftConduit)
 
     const rightConduit = new THREE.Mesh(conduitGeo, this.armConduitMat)
     rightConduit.rotation.x = Math.PI / 2
-    rightConduit.position.set(0.045, 0.045, 0.12)
+    rightConduit.position.set(0.034, 0.048, 0.12)
     this.robotArm.add(rightConduit)
 
-    // Articulated wrist gimbal
-    const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 16), armJointMat)
-    wrist.rotation.z = Math.PI / 2
-    wrist.position.set(0, 0, -0.04)
-    this.robotArm.add(wrist)
+    // Dual hydraulic wrist actuators on underside flanks
+    for (let s = -1; s <= 1; s += 2) {
+      const cylinderCase = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.12, 8), armMetalMat)
+      cylinderCase.rotation.x = Math.PI / 2
+      cylinderCase.position.set(s * 0.040, -0.028, 0.04)
+      this.robotArm.add(cylinderCase)
 
-    // Palm base
-    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.045, 0.1), armMetalMat)
-    palm.position.set(0, 0, -0.1)
+      const pistonRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.09, 8), chromePinMat)
+      pistonRod.rotation.x = Math.PI / 2
+      pistonRod.position.set(s * 0.040, -0.028, -0.03)
+      this.robotArm.add(pistonRod)
+    }
+
+    // 2. Articulated Universal Wrist Gimbal
+    const wristRing = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.0065, 8, 20), armJointMat)
+    wristRing.position.set(0, 0, -0.042)
+    this.robotArm.add(wristRing)
+
+    const wristHub = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.062, 12), armMetalMat)
+    wristHub.rotation.z = Math.PI / 2
+    wristHub.position.set(0, 0, -0.042)
+    this.robotArm.add(wristHub)
+
+    for (let s = -1; s <= 1; s += 2) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.006, 8), chromePinMat)
+      cap.rotation.z = Math.PI / 2
+      cap.position.set(s * 0.033, 0, -0.042)
+      this.robotArm.add(cap)
+    }
+
+    // 3. Ergonomic Contoured Palm Chassis
+    const palmGeo = new THREE.CylinderGeometry(0.045, 0.040, 0.034, 16)
+    const palm = new THREE.Mesh(palmGeo, armMetalMat)
+    palm.rotation.x = Math.PI / 2
+    palm.scale.set(1.0, 1.25, 0.65)
+    palm.position.set(0, 0.002, -0.100)
     this.robotArm.add(palm)
 
-    // Central Heavy Pulse Cannon Assembly
-    // Morphed by nanites: retracted into palm in hand mode (m=0), extends out in blaster mode (m=1)
-    const blasterGrp = new THREE.Group()
-    blasterGrp.position.set(0, 0.005, -0.11)
+    // Dorsal hand armor carapace
+    const handCarapace = new THREE.Mesh(new THREE.BoxGeometry(0.080, 0.010, 0.065), armCarapaceMat)
+    handCarapace.position.set(0, 0.022, -0.098)
+    this.robotArm.add(handCarapace)
 
-    // Main heavy rifled barrel
-    const barrelGeo = new THREE.CylinderGeometry(0.032, 0.038, 0.15, 16)
+    // Nanite tendon conduits fanning across dorsal palm to knuckle hubs
+    const knuckleXs = [0.033, 0.011, -0.011, -0.033]
+    knuckleXs.forEach(kx => {
+      const tendon = new THREE.Mesh(new THREE.CylinderGeometry(0.0022, 0.0022, 0.055, 6), this.armConduitMat)
+      tendon.rotation.x = Math.PI / 2
+      tendon.rotation.z = -kx * 1.8
+      tendon.position.set(kx * 0.6, 0.024, -0.102)
+      this.robotArm.add(tendon)
+    })
+
+    // 4. Central Heavy Pulse Cannon Assembly (Nanite morph: extends on fire)
+    const blasterGrp = new THREE.Group()
+    blasterGrp.position.set(0, 0.004, -0.11)
+
+    const barrelGeo = new THREE.CylinderGeometry(0.028, 0.034, 0.16, 16)
     const barrel = new THREE.Mesh(barrelGeo, armJointMat)
     barrel.rotation.x = Math.PI / 2
     blasterGrp.add(barrel)
 
-    // Ported muzzle brake / crown
-    const muzzleBrakeGeo = new THREE.CylinderGeometry(0.042, 0.040, 0.035, 16)
+    const muzzleBrakeGeo = new THREE.CylinderGeometry(0.036, 0.034, 0.032, 16)
     const muzzleBrake = new THREE.Mesh(muzzleBrakeGeo, armMetalMat)
     muzzleBrake.rotation.x = Math.PI / 2
-    muzzleBrake.position.z = -0.075
+    muzzleBrake.position.z = -0.082
     blasterGrp.add(muzzleBrake)
 
-    // Accelerator glow ring
-    const glowRingGeo = new THREE.TorusGeometry(0.036, 0.007, 8, 16)
+    const glowRingGeo = new THREE.TorusGeometry(0.030, 0.0055, 8, 16)
     const glowRing = new THREE.Mesh(glowRingGeo, this.armCoreMat)
-    glowRing.position.z = -0.02
+    glowRing.position.z = -0.025
     blasterGrp.add(glowRing)
+
+    const apertureRing = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.004, 8, 14), accentGoldMat)
+    apertureRing.position.z = -0.096
+    blasterGrp.add(apertureRing)
 
     this.robotArm.add(blasterGrp)
     this.blasterBarrel = blasterGrp
 
     // Central plasma reactor sphere
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 12), this.armCoreMat)
-    core.position.set(0, 0.005, -0.08)
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), this.armCoreMat)
+    core.position.set(0, 0.004, -0.08)
     this.robotArm.add(core)
     this.blasterCore = core
 
-    // Articulated robotic fingers (hand mode: extended forward / blaster mode: curled magnetic clamp)
-    const fingerMat = armJointMat
-    const tipMat = this.armConduitMat
+    // 5. Articulated Cybernetic Fingers (2-segment joints with chrome knuckle pins)
+    this.fingerGroups = []
+    this.fingerDistalGroups = []
+    this.fingerHandRotX = []
+    this.fingerBlasterRotX = []
+    this.fingerBaseX = []
 
-    const addFinger = (x: number, y: number, z: number, len: number, handRotX: number, blasterRotX: number) => {
+    const addCyberFinger = (
+      kx: number, ky: number, kz: number,
+      proxLen: number, distLen: number,
+      handRotX: number, blasterRotX: number
+    ) => {
+      // Knuckle group (proximal phalanx)
       const fGroup = new THREE.Group()
-      fGroup.position.set(x, y, z)
+      fGroup.position.set(kx, ky, kz)
       fGroup.rotation.x = handRotX
 
-      const phalanx = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, len), fingerMat)
-      phalanx.position.z = -len / 2
-      fGroup.add(phalanx)
+      // Knuckle hinge pin
+      const knucklePin = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.014, 8), chromePinMat)
+      knucklePin.rotation.z = Math.PI / 2
+      fGroup.add(knucklePin)
 
-      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.015), tipMat)
-      tip.position.z = -len - 0.007
-      fGroup.add(tip)
+      // Proximal phalanx bone
+      const proxMesh = new THREE.Mesh(new THREE.BoxGeometry(0.013, 0.011, proxLen), armJointMat)
+      proxMesh.position.z = -proxLen / 2
+      fGroup.add(proxMesh)
 
+      // Dorsal armor plate on proximal segment
+      const proxArmor = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.003, proxLen * 0.8), armCarapaceMat)
+      proxArmor.position.set(0, 0.006, -proxLen / 2)
+      fGroup.add(proxArmor)
+
+      // Distal group (intermediate/distal phalanx + sensor tip)
+      const distalGroup = new THREE.Group()
+      distalGroup.position.set(0, 0, -proxLen)
+      distalGroup.rotation.x = 0.12 // Natural resting curl
+
+      // Distal hinge pin
+      const distalPin = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.011, 8), chromePinMat)
+      distalPin.rotation.z = Math.PI / 2
+      distalGroup.add(distalPin)
+
+      // Distal phalanx bone
+      const distMesh = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.009, distLen), armJointMat)
+      distMesh.position.z = -distLen / 2
+      distalGroup.add(distMesh)
+
+      // Underside tactile biometric pad
+      const tactilePad = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.0025, distLen * 0.8), armMetalMat)
+      tactilePad.position.set(0, -0.005, -distLen / 2)
+      distalGroup.add(tactilePad)
+
+      // Glowing nanite sensor nail
+      const nail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.0025, 0.010), this.armConduitMat)
+      nail.position.set(0, 0.005, -distLen + 0.003)
+      distalGroup.add(nail)
+
+      fGroup.add(distalGroup)
       this.robotArm.add(fGroup)
+
       this.fingerGroups.push(fGroup)
+      this.fingerDistalGroups.push(distalGroup)
       this.fingerHandRotX.push(handRotX)
       this.fingerBlasterRotX.push(blasterRotX)
-      this.fingerBaseX.push(x)
+      this.fingerBaseX.push(kx)
     }
 
-    addFinger(0.034, 0.010, -0.15, 0.070, -0.08, 1.25)  // Index
-    addFinger(0.012, 0.012, -0.15, 0.080, -0.05, 1.30)  // Middle
-    addFinger(-0.012, 0.012, -0.15, 0.075, -0.05, 1.30) // Ring
-    addFinger(-0.034, 0.010, -0.15, 0.060, -0.10, 1.25) // Pinky
+    // Index finger
+    addCyberFinger(0.033, 0.008, -0.138, 0.042, 0.032, -0.06, 1.22)
+    // Middle finger
+    addCyberFinger(0.011, 0.011, -0.140, 0.046, 0.036, -0.03, 1.28)
+    // Ring finger
+    addCyberFinger(-0.011, 0.010, -0.139, 0.043, 0.033, -0.04, 1.28)
+    // Pinky finger
+    addCyberFinger(-0.033, 0.007, -0.136, 0.036, 0.026, -0.09, 1.20)
 
-    // Thumb on inner edge
-    const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.02, 0.05), fingerMat)
-    thumb.position.set(-0.050, -0.005, -0.11)
-    thumb.rotation.set(0.1, 0.45, -0.15)
-    this.robotArm.add(thumb)
-    this.thumbMesh = thumb
+    // 6. Articulated Cybernetic Opposable Thumb
+    this.thumbBaseGroup = new THREE.Group()
+    this.thumbBaseGroup.position.set(-0.044, -0.006, -0.092)
+    this.thumbBaseGroup.rotation.set(0.10, 0.35, -0.20)
 
-    // Muzzle Flash Effect (at tip of extended blaster barrel z = -0.285)
+    // Ball/hinge knuckle joint
+    const thumbBall = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 8, 8), chromePinMat)
+    this.thumbBaseGroup.add(thumbBall)
+
+    // Proximal thumb shaft
+    const thumbProx = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.013, 0.034), armJointMat)
+    thumbProx.position.z = -0.017
+    this.thumbBaseGroup.add(thumbProx)
+
+    // Lateral armor ridge
+    const thumbRidge = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.015, 0.028), armCarapaceMat)
+    thumbRidge.position.set(-0.008, 0, -0.017)
+    this.thumbBaseGroup.add(thumbRidge)
+
+    // Distal thumb group
+    this.thumbDistalGroup = new THREE.Group()
+    this.thumbDistalGroup.position.set(0, 0, -0.034)
+    this.thumbDistalGroup.rotation.x = 0.15
+
+    const thumbPin = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 8), chromePinMat)
+    thumbPin.rotation.x = Math.PI / 2
+    this.thumbDistalGroup.add(thumbPin)
+
+    const thumbDist = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.011, 0.026), armJointMat)
+    thumbDist.position.z = -0.013
+    this.thumbDistalGroup.add(thumbDist)
+
+    const thumbNail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.003, 0.008), this.armConduitMat)
+    thumbNail.position.set(0, 0.006, -0.022)
+    this.thumbDistalGroup.add(thumbNail)
+
+    this.thumbBaseGroup.add(this.thumbDistalGroup)
+    this.robotArm.add(this.thumbBaseGroup)
+
+    // 7. Muzzle Flash Effect (tip of extended blaster barrel z = -0.285)
     this.muzzleFlash = new THREE.Group()
-    this.muzzleFlash.position.set(0, 0.005, -0.285)
+    this.muzzleFlash.position.set(0, 0.004, -0.285)
     const flashCore = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), this.armCoreMat)
     const flashCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.01, 0.01), this.armCoreMat)
     const flashCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.22, 0.01), this.armCoreMat)
@@ -2208,7 +2358,7 @@ export class SceneRenderer {
     this.armCoreMat.color.setHex(color)
   }
 
-  /** Lerp factor 0 (open nanite hand) -> 1 (heavy pulse blaster). Cosmetic only. */
+  /** Lerp factor 0 (open sculpted cyber hand) -> 1 (heavy pulse blaster). Cosmetic only. */
   private applyBlasterMorph(t: number) {
     const m = THREE.MathUtils.clamp(t, 0, 1)
 
@@ -2222,18 +2372,35 @@ export class SceneRenderer {
     this.blasterCore.scale.setScalar(m)
     this.blasterCore.visible = m > 0.01
 
-    // 2. Fingers: open natural hand (m=0) -> tight magnetic cowling clamp around barrel (m=1)
+    // 2. Articulated fingers:
+    // Hand mode: relaxed, spread, ergonomic curl
+    // Blaster mode: proximal curls tight around barrel cowling (~1.25 rad),
+    // and distal phalanx curls inward (~0.95 rad) creating a robotic magnetic clamp
     for (let i = 0; i < this.fingerGroups.length; i++) {
       const g = this.fingerGroups[i]
       g.rotation.x = THREE.MathUtils.lerp(this.fingerHandRotX[i], this.fingerBlasterRotX[i], m)
-      g.position.x = THREE.MathUtils.lerp(this.fingerBaseX[i], this.fingerBaseX[i] * 0.55, m)
-      g.position.z = THREE.MathUtils.lerp(-0.15, -0.13, m)
+      g.position.x = THREE.MathUtils.lerp(this.fingerBaseX[i], this.fingerBaseX[i] * 0.58, m)
+      g.position.z = THREE.MathUtils.lerp(-0.138, -0.125, m)
+
+      // Distal phalanx secondary curling
+      const dg = this.fingerDistalGroups[i]
+      if (dg) {
+        dg.rotation.x = THREE.MathUtils.lerp(0.12, 0.95, m)
+      }
     }
 
-    // 3. Thumb: rests open in hand mode -> folds flat into chassis grip in blaster mode
-    this.thumbMesh.rotation.y = THREE.MathUtils.lerp(0.45, 1.15, m)
-    this.thumbMesh.rotation.z = THREE.MathUtils.lerp(-0.15, 0.40, m)
-    this.thumbMesh.position.x = THREE.MathUtils.lerp(-0.050, -0.038, m)
+    // 3. Articulated Thumb:
+    // Hand mode: relaxed opposable thumb (slight spread, angled forward-down)
+    // Blaster mode: folds tightly against lower chassis grip to stabilize blaster
+    if (this.thumbBaseGroup) {
+      this.thumbBaseGroup.rotation.x = THREE.MathUtils.lerp(0.10, 0.35, m)
+      this.thumbBaseGroup.rotation.y = THREE.MathUtils.lerp(0.35, 1.05, m)
+      this.thumbBaseGroup.rotation.z = THREE.MathUtils.lerp(-0.20, 0.30, m)
+      this.thumbBaseGroup.position.x = THREE.MathUtils.lerp(-0.044, -0.035, m)
+    }
+    if (this.thumbDistalGroup) {
+      this.thumbDistalGroup.rotation.x = THREE.MathUtils.lerp(0.15, 0.85, m)
+    }
   }
 
   setFirstPersonShield(active: boolean) {
