@@ -32,6 +32,16 @@ export interface NaniteCache {
   amount: number
 }
 
+export interface JumpPad {
+  id: number
+  x: number
+  y: number
+  z: number
+  nodeIndex: number
+  createdAt: number
+  expiresAt: number
+}
+
 export interface GameStateMsg {
   type: 'gameState'
   tick: number
@@ -42,6 +52,7 @@ export interface GameStateMsg {
   leaderboard: { id: number; name: string; score: number; isBot?: boolean; ping?: number }[]
   players: PlayerState[]
   naniteCaches?: NaniteCache[]
+  jumpPads?: JumpPad[]
 }
 
 export interface InputMsg {
@@ -138,6 +149,15 @@ export interface CachePickupMsg {
   z: number
 }
 
+export interface JumpPadLaunchMsg {
+  type: 'jumpPadLaunch'
+  padId: number
+  playerId: number
+  x: number
+  y: number
+  z: number
+}
+
 export interface WelcomeMsg {
   type: 'welcome'
   playerId: number
@@ -202,6 +222,7 @@ export type NetMessage =
   | KillMsg
   | TeleportedMsg
   | CachePickupMsg
+  | JumpPadLaunchMsg
   | WelcomeMsg
   | JoinMsg
   | PingMsg

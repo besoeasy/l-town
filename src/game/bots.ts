@@ -1,7 +1,7 @@
 import { CFG, type CoreId, CORE_IDS } from './config'
 import type { MapData } from './map'
 import { groundHeight } from './map'
-import type { PlayerState, NaniteCache } from '../net/types'
+import type { PlayerState, NaniteCache, JumpPad } from '../net/types'
 import { resolveCollision } from './physics'
 
 export function spawnBots(count: number, map: MapData): PlayerState[] {
@@ -42,7 +42,9 @@ export function tickBots(
   nearby: (x: number, z: number) => any[],
   dt: number,
   onBotShoot?: (bot: PlayerState, target: { id: number; x: number; y: number; z: number }) => void,
-  caches?: NaniteCache[]
+  caches?: NaniteCache[],
+  jumpPads?: JumpPad[],
+  onBotJumpPad?: (bot: PlayerState, pad: JumpPad) => void
 ) {
   const now = Date.now()
   for (const bot of bots) {
@@ -145,7 +147,30 @@ export function tickBots(
       bot.z = col.z
     }
 
-    // Follow the rolling terrain
-    bot.y = groundHeight(bot.x, bot.z, map.seed) + 1.6
+    // Step on dynamic jump pads
+    const botVy = (bot as any).vy || 0
+    if (jumpPads && jumpPads.length > 0 && botVy <= 0) {
+      for (const pad of jumpPads) {
+        const dist = Math.hypot(pad.x - bot.x, pad.z - bot.z)
+        if (dist <= CFG.JUMP_PAD_RADIUS && Math.abs(bot.y - pad.y) < 2.0) {
+          ;(bot as any).vy = CFG.JUMP_PAD_LAUNCH_VY
+          onBotJumpPad?.(bot, pad)
+          break
+        }
+      }
+    }
+
+    // Follow rolling terrain or airborne kinematics
+    const groundBase = groundHeight(bot.x, bot.z, map.seed) + 1.6
+    if ((bot as any).vy && (bot as any).vy !== 0) {
+      ;(bot as any).vy -= CFG.GRAVITY * dt
+      bot.y += (bot as any).vy * dt
+      if (bot.y <= groundBase) {
+        bot.y = groundBase
+        ;(bot as any).vy = 0
+      }
+    } else {
+      bot.y = groundBase
+    }
   }
 }

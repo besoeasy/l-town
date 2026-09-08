@@ -287,6 +287,38 @@ class SoundEngine {
     osc.stop(now + 0.25)
   }
 
+  playJumpPadLaunch() {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    // 1. Heavy pneumatic punch
+    const punch = this.ctx.createOscillator()
+    const punchGain = this.ctx.createGain()
+    punch.type = 'triangle'
+    punch.frequency.setValueAtTime(170, now)
+    punch.frequency.exponentialRampToValueAtTime(32, now + 0.36)
+    punchGain.gain.setValueAtTime(0.42, now)
+    punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.36)
+    punch.connect(punchGain)
+    punchGain.connect(this.ctx.destination)
+    punch.start(now)
+    punch.stop(now + 0.36)
+
+    // 2. Rising kinetic ionization sweep
+    const sweep = this.ctx.createOscillator()
+    const sweepGain = this.ctx.createGain()
+    sweep.type = 'sawtooth'
+    sweep.frequency.setValueAtTime(220, now)
+    sweep.frequency.exponentialRampToValueAtTime(1150, now + 0.30)
+    sweepGain.gain.setValueAtTime(0.22, now)
+    sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.30)
+    sweep.connect(sweepGain)
+    sweepGain.connect(this.ctx.destination)
+    sweep.start(now)
+    sweep.stop(now + 0.30)
+  }
+
   startFootsteps(running = false) {
     if (this.isWalking) return
     this.isWalking = true

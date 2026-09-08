@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
 import type { MapData, Box } from './map'
 import { groundHeight } from './map'
-import type { PlayerState, NaniteCache } from '../net/types'
+import type { PlayerState, NaniteCache, JumpPad } from '../net/types'
 import { CFG, CORE_DETAILS } from './config'
 import { sound } from './audio'
 
@@ -894,6 +894,18 @@ export class SceneRenderer {
     group: THREE.Group
     coreMesh: THREE.Mesh
     ringMesh: THREE.Mesh
+    baseY: number
+    phase: number
+  }>()
+  private jumpPadMeshes = new Map<number, {
+    group: THREE.Group
+    ringMesh1: THREE.Mesh
+    ringMesh2: THREE.Mesh
+    chevronGroup: THREE.Group
+    beamMesh: THREE.Mesh
+    matGlow: THREE.MeshBasicMaterial
+    matBeam: THREE.MeshBasicMaterial
+    expiresAt: number
     baseY: number
     phase: number
   }>()
@@ -2587,6 +2599,154 @@ export class SceneRenderer {
     }
   }
 
+  addJumpPad(pad: JumpPad) {
+    if (this.jumpPadMeshes.has(pad.id)) return
+
+    const group = new THREE.Group()
+    group.position.set(pad.x, pad.y, pad.z)
+
+    // 1. Heavy industrial octagonal launch collar
+    const collarGeo = new THREE.CylinderGeometry(2.1, 2.3, 0.16, 8)
+    const collarMat = new THREE.MeshStandardMaterial({
+      color: 0x161d26,
+      roughness: 0.4,
+      metalness: 0.85
+    })
+    const collar = new THREE.Mesh(collarGeo, collarMat)
+    collar.position.y = 0.08
+    group.add(collar)
+
+    // 2. Inner magnetic core bed
+    const bedGeo = new THREE.CylinderGeometry(1.8, 1.8, 0.06, 16)
+    const bedMat = new THREE.MeshStandardMaterial({
+      color: 0x0c1015,
+      roughness: 0.6,
+      metalness: 0.4
+    })
+    const bed = new THREE.Mesh(bedGeo, bedMat)
+    bed.position.y = 0.12
+    group.add(bed)
+
+    // 3. Ground holographic projection ring
+    const groundRingGeo = new THREE.RingGeometry(1.95, 2.15, 32)
+    const matGlow = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+    const groundRing = new THREE.Mesh(groundRingGeo, matGlow)
+    groundRing.rotation.x = -Math.PI / 2
+    groundRing.position.y = 0.165
+    group.add(groundRing)
+
+    // 4. Dual hovering counter-rotating holographic kinetic rings
+    const ring1Geo = new THREE.TorusGeometry(1.5, 0.035, 8, 28)
+    const ringMesh1 = new THREE.Mesh(ring1Geo, matGlow)
+    ringMesh1.rotation.x = Math.PI / 2
+    ringMesh1.position.y = 0.32
+    group.add(ringMesh1)
+
+    const ring2Geo = new THREE.TorusGeometry(1.1, 0.028, 8, 24)
+    const ringMesh2 = new THREE.Mesh(ring2Geo, matGlow)
+    ringMesh2.rotation.x = Math.PI / 2
+    ringMesh2.position.y = 0.58
+    group.add(ringMesh2)
+
+    // 5. Holographic upward-pointing chevrons
+    const chevronGroup = new THREE.Group()
+    chevronGroup.position.y = 0.4
+    for (let i = 0; i < 4; i++) {
+      const ang = (i * Math.PI) / 2
+      const chev = new THREE.Group()
+      chev.position.set(Math.cos(ang) * 0.75, 0, Math.sin(ang) * 0.75)
+      chev.rotation.y = -ang
+
+      const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.04), matGlow)
+      arm1.rotation.z = Math.PI / 4
+      arm1.position.set(-0.06, 0.06, 0)
+      const arm2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.04), matGlow)
+      arm2.rotation.z = -Math.PI / 4
+      arm2.position.set(0.06, 0.06, 0)
+      chev.add(arm1, arm2)
+      chevronGroup.add(chev)
+    }
+    group.add(chevronGroup)
+
+    // 6. Vertical kinetic accelerator beacon beam (visible from a distance across map)
+    const beamGeo = new THREE.CylinderGeometry(1.2, 1.2, 16, 16, 1, true)
+    const matBeam = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+    const beamMesh = new THREE.Mesh(beamGeo, matBeam)
+    beamMesh.position.y = 8
+    group.add(beamMesh)
+
+    this.scene.add(group)
+    this.jumpPadMeshes.set(pad.id, {
+      group,
+      ringMesh1,
+      ringMesh2,
+      chevronGroup,
+      beamMesh,
+      matGlow,
+      matBeam,
+      expiresAt: pad.expiresAt,
+      baseY: pad.y,
+      phase: Math.random() * Math.PI * 2
+    })
+  }
+
+  removeJumpPad(id: number, withEffect = true) {
+    const p = this.jumpPadMeshes.get(id)
+    if (!p) return
+
+    if (withEffect) {
+      this.spawnImpactSparks(new THREE.Vector3(p.group.position.x, p.baseY + 0.4, p.group.position.z), 0x00f0ff)
+    }
+
+    this.scene.remove(p.group)
+    p.group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry?.dispose()
+        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose())
+        else obj.material?.dispose()
+      }
+    })
+    this.jumpPadMeshes.delete(id)
+  }
+
+  clearJumpPads() {
+    for (const [id] of this.jumpPadMeshes) {
+      this.removeJumpPad(id, false)
+    }
+  }
+
+  triggerJumpPadEffect(x: number, y: number, z: number) {
+    // Kinetic launch shockwave spark burst
+    this.spawnImpactSparks(new THREE.Vector3(x, y + 0.4, z), 0x00f0ff)
+    for (let i = 0; i < 14; i++) {
+      const ang = Math.random() * Math.PI * 2
+      const spd = 1.6 + Math.random() * 3.8
+      const geo = new THREE.BoxGeometry(0.06, 0.28, 0.06)
+      const mat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 })
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.position.set(x + Math.cos(ang) * 0.45, y + 0.3, z + Math.sin(ang) * 0.45)
+      this.scene.add(mesh)
+      this.sparks.push({
+        mesh,
+        vel: new THREE.Vector3(Math.cos(ang) * spd, 16 + Math.random() * 14, Math.sin(ang) * spd),
+        life: 0.38
+      })
+    }
+  }
+
   render(dt: number, isMoving = false, superActive = false, shieldActive = false) {
     for (const c of this.clouds) {
       c.position.x += (c.userData as any).driftX * dt * 4
@@ -2736,12 +2896,37 @@ export class SceneRenderer {
       c.group.position.y = c.baseY + Math.sin(this.shieldTime * 3.2 + c.phase) * 0.14
     }
 
+    // Animate Jump Pads (counter-rotating holographic rings & hazard warning strobe)
+    const nowMs = Date.now()
+    for (const [, p] of this.jumpPadMeshes) {
+      const remainingSec = (p.expiresAt - nowMs) / 1000
+      p.ringMesh1.rotation.z += dt * 2.8
+      p.ringMesh2.rotation.z -= dt * 3.4
+      p.chevronGroup.rotation.y += dt * 1.6
+      p.ringMesh1.position.y = 0.32 + Math.sin(this.shieldTime * 4 + p.phase) * 0.04
+      p.ringMesh2.position.y = 0.58 + Math.sin(this.shieldTime * 5 + p.phase + 1) * 0.05
+
+      if (remainingSec <= CFG.JUMP_PAD_WARNING_TIME) {
+        // Warning phase (last 5 seconds): rapid hazard amber / cyan strobe
+        const warnStrobe = Math.sin(this.shieldTime * 18) > 0
+        const col = warnStrobe ? 0xffaa00 : 0x00f0ff
+        p.matGlow.color.setHex(col)
+        p.matBeam.color.setHex(col)
+        p.matBeam.opacity = warnStrobe ? 0.38 : 0.12
+      } else {
+        p.matGlow.color.setHex(0x00f0ff)
+        p.matBeam.color.setHex(0x00f0ff)
+        p.matBeam.opacity = 0.18 + 0.08 * Math.sin(this.shieldTime * 3.5 + p.phase)
+      }
+    }
+
     this.renderer.render(this.scene, this.camera)
   }
 
   destroy() {
     window.removeEventListener('resize', this.onResize)
     this.clearNaniteCaches()
+    this.clearJumpPads()
     for (const p of this.projectiles) {
       this.scene.remove(p.mesh)
     }

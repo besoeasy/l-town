@@ -22,6 +22,13 @@ export const CFG = {
   RESPAWN_DELAY: 7000,      // 7s reprint delay
   NANITE_CACHE_AMOUNT: 100, // Nanite cache dropped on death
   NANITE_CACHE_RADIUS: 5.0, // Pickup radius in world units
+  JUMP_PAD_COUNT: 6,        // Maximum concurrent active dynamic jump pads
+  JUMP_PAD_LIFETIME: 28,    // Active duration in seconds before cycling
+  JUMP_PAD_WARNING_TIME: 5, // Warning flicker phase in seconds before despawn
+  JUMP_PAD_RADIUS: 2.2,     // Step-on activation radius in world units
+  JUMP_PAD_COOLDOWN_MS: 1200,// Anti-retrigger cooldown per entity (ms)
+  JUMP_PAD_LAUNCH_VY: 34,   // Vertical launch velocity (clears ~18u height)
+  JUMP_PAD_MOMENTUM_BOOST: 1.25, // Forward momentum boost multiplier
   JUMP_SPEED: 18,           // Base vertical jump velocity
   GRAVITY: 32,              // Gravity units/sec^2
   SUPER_JUMP_SPEED: 44,     // High jump velocity (~10x height)

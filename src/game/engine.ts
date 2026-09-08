@@ -4,7 +4,7 @@ import { createBoxGrid, resolveCollision, raycastPlayers } from './physics'
 import { spawnBots, tickBots } from './bots'
 import { sound } from './audio'
 import type { SceneRenderer } from './scene'
-import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg, TelemetryData, MatchResults, NaniteCache, CachePickupMsg } from '../net/types'
+import type { PlayerState, NetMessage, KillMsg, HitConfirmMsg, TelemetryData, MatchResults, NaniteCache, CachePickupMsg, JumpPad, JumpPadLaunchMsg } from '../net/types'
 import { P2PHost, P2PClient } from '../net/webrtc'
 
 export type GameMode = 'solo' | 'host' | 'client'
@@ -33,7 +33,11 @@ export const ARENA_SPAWNS: Array<{ x: number; y: number; z: number; yaw: number 
   { x: 2.5, y: 1.6, z: 45, yaw: 0 },
   { x: -2.5, y: 1.6, z: 45, yaw: Math.PI },
   { x: 0, y: 1.6, z: -35, yaw: 0 },
-  { x: 0, y: 1.6, z: -55, yaw: Math.PI }
+  { x: 0, y: 1.6, z: -55, yaw: Math.PI },
+  { x: 2.5, y: 1.6, z: -65, yaw: Math.PI },
+  { x: -2.5, y: 1.6, z: -65, yaw: Math.PI },
+  { x: 2.5, y: 1.6, z: -45, yaw: Math.PI },
+  { x: -2.5, y: 1.6, z: -45, yaw: 0 }
 ]
 
 export function getRandomSpawn(map: MapData): { x: number; y: number; z: number; yaw: number } {
@@ -54,6 +58,30 @@ export function getArenaSpawn(playerId: number): { x: number; y: number; z: numb
   return ARENA_SPAWNS[idx]
 }
 
+/** 20 Curated high-value strategic tactical jump pad nodes */
+export const JUMP_PAD_CANDIDATE_NODES: Array<{ x: number; z: number; name: string }> = [
+  { x: 0, z: 11.5, name: 'Meridian Plaza Steps' },
+  { x: 0, z: -11.5, name: 'Meridian South Terrace' },
+  { x: -12.5, z: 0, name: 'Meridian West Alley' },
+  { x: 12.5, z: 0, name: 'Meridian East Alley' },
+  { x: 0, z: 26, name: 'North Courtyard Gate' },
+  { x: 0, z: -26, name: 'South Courtyard Gate' },
+  { x: 26, z: 0, name: 'East Courtyard Rampart' },
+  { x: -26, z: 0, name: 'West Courtyard Rampart' },
+  { x: -15, z: 17, name: 'Plaza Fountain West' },
+  { x: 15, z: 17, name: 'Plaza Fountain East' },
+  { x: -15, z: -17, name: 'South Plaza West' },
+  { x: 15, z: -17, name: 'South Plaza East' },
+  { x: 0, z: 52, name: 'North Avenue Midway' },
+  { x: 0, z: -52, name: 'South Avenue Midway' },
+  { x: 42, z: 35, name: 'Northeast Outpost' },
+  { x: -42, z: 35, name: 'Northwest Outpost' },
+  { x: 42, z: -35, name: 'Southeast Outpost' },
+  { x: -42, z: -35, name: 'Southwest Outpost' },
+  { x: 68, z: 0, name: 'East Canal Ridge' },
+  { x: -68, z: 0, name: 'West Quarry Ridge' },
+]
+
 export class GameEngine {
   public localPlayer: PlayerState
   public players = new Map<number, PlayerState>()
@@ -68,6 +96,9 @@ export class GameEngine {
   public fps = 60
   public naniteCaches = new Map<number, NaniteCache>()
   private nextCacheId = 1
+  public jumpPads = new Map<number, JumpPad>()
+  private nextJumpPadId = 1
+  private lastJumpPadTriggerTime = 0
 
   private pendingSpawns = new Map<number, { x: number; y: number; z: number; yaw: number }>()
   private keys: Record<string, boolean> = {}
@@ -135,6 +166,10 @@ export class GameEngine {
     this.scene.camera.rotation.y = spawn.yaw
 
     this.setupInput(canvas)
+
+    if (this.mode === 'solo' || this.mode === 'host') {
+      this.initJumpPads()
+    }
   }
 
   public getRandomSpawn(): { x: number; y: number; z: number; yaw: number } {
@@ -668,6 +703,56 @@ export class GameEngine {
     }
   }
 
+  public initJumpPads() {
+    const available = JUMP_PAD_CANDIDATE_NODES.map((_, i) => i)
+    while (this.jumpPads.size < CFG.JUMP_PAD_COUNT && available.length > 0) {
+      const pickIdx = Math.floor(Math.random() * available.length)
+      const nodeIdx = available.splice(pickIdx, 1)[0]
+      this.spawnJumpPad(nodeIdx)
+    }
+  }
+
+  public spawnJumpPad(nodeIndex: number): JumpPad {
+    const node = JUMP_PAD_CANDIDATE_NODES[nodeIndex]
+    const id = this.nextJumpPadId++
+    const y = groundHeight(node.x, node.z, this.map.seed) + 0.05
+    const now = Date.now()
+    const pad: JumpPad = {
+      id,
+      x: node.x,
+      y,
+      z: node.z,
+      nodeIndex,
+      createdAt: now,
+      expiresAt: now + CFG.JUMP_PAD_LIFETIME * 1000
+    }
+    this.jumpPads.set(id, pad)
+    this.scene.addJumpPad(pad)
+    return pad
+  }
+
+  public syncJumpPads(remotePads: JumpPad[]) {
+    const currentIds = new Set(this.jumpPads.keys())
+    const remoteIds = new Set(remotePads.map(p => p.id))
+
+    for (const rp of remotePads) {
+      if (!this.jumpPads.has(rp.id)) {
+        this.jumpPads.set(rp.id, rp)
+        this.scene.addJumpPad(rp)
+      } else {
+        const local = this.jumpPads.get(rp.id)!
+        local.expiresAt = rp.expiresAt
+      }
+    }
+
+    for (const id of currentIds) {
+      if (!remoteIds.has(id)) {
+        this.jumpPads.delete(id)
+        this.scene.removeJumpPad(id, false)
+      }
+    }
+  }
+
   private authoritativeTick() {
     const now = Date.now()
     const dt = CFG.TICK_MS / 1000
@@ -682,21 +767,62 @@ export class GameEngine {
         .map(p => ({
           id: p.id, x: p.x, y: p.y, z: p.z, alive: p.alive
         }))
-      tickBots(bots, targets, this.map, this.nearbyBoxes, dt, (bot, target) => {
-        const dx = target.x - bot.x
-        const dy = (target.y + 1.2) - (bot.y + 1.2)
-        const dz = target.z - bot.z
-        const len = Math.hypot(dx, dy, dz)
-        if (len > 0) {
-          // Visible projectile for bot shot
-          this.scene.spawnProjectile(bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, false)
-          const hit = raycastPlayers(bot.id, bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, targets, this.map)
-          if (hit) {
-            const rageMult = bot.character === 'berserker' && Date.now() - bot.lastAbilityAt < 8000 ? 1.5 : 1
-            this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5 * rageMult, bot.id)
+      tickBots(
+        bots,
+        targets,
+        this.map,
+        this.nearbyBoxes,
+        dt,
+        (bot, target) => {
+          const dx = target.x - bot.x
+          const dy = target.y + 1.2 - (bot.y + 1.2)
+          const dz = target.z - bot.z
+          const len = Math.hypot(dx, dy, dz)
+          if (len > 0) {
+            // Visible projectile for bot shot
+            this.scene.spawnProjectile(bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, false)
+            const hit = raycastPlayers(bot.id, bot.x, bot.y + 1.2, bot.z, dx / len, dy / len, dz / len, targets, this.map)
+            if (hit) {
+              const rageMult = bot.character === 'berserker' && Date.now() - bot.lastAbilityAt < 8000 ? 1.5 : 1
+              this.applyDamage(hit.id, CFG.DMG_SINGLE * 0.5 * rageMult, bot.id)
+            }
+          }
+        },
+        [...this.naniteCaches.values()],
+        [...this.jumpPads.values()],
+        (bot, pad) => {
+          sound.playJumpPadLaunch()
+          this.scene.triggerJumpPadEffect(pad.x, pad.y, pad.z)
+          if (this.host) {
+            this.host.broadcast({
+              type: 'jumpPadLaunch',
+              padId: pad.id,
+              playerId: bot.id,
+              x: pad.x,
+              y: pad.y,
+              z: pad.z
+            })
           }
         }
-      }, [...this.naniteCaches.values()])
+      )
+    }
+
+    // Maintain active dynamic jump pads (up to CFG.JUMP_PAD_COUNT)
+    for (const [id, pad] of [...this.jumpPads.entries()]) {
+      if (now >= pad.expiresAt) {
+        this.jumpPads.delete(id)
+        this.scene.removeJumpPad(id, true)
+      }
+    }
+
+    if (this.jumpPads.size < CFG.JUMP_PAD_COUNT) {
+      const activeNodeIndices = new Set([...this.jumpPads.values()].map(p => p.nodeIndex))
+      const availableIndices = JUMP_PAD_CANDIDATE_NODES.map((_, i) => i).filter(i => !activeNodeIndices.has(i))
+      while (this.jumpPads.size < CFG.JUMP_PAD_COUNT && availableIndices.length > 0) {
+        const pickIdx = Math.floor(Math.random() * availableIndices.length)
+        const nodeIdx = availableIndices.splice(pickIdx, 1)[0]
+        this.spawnJumpPad(nodeIdx)
+      }
     }
 
     // Health regen for players
@@ -805,7 +931,8 @@ export class GameEngine {
         highValueTargetId: hvt?.id || null,
         leaderboard,
         players: [...this.players.values()],
-        naniteCaches: [...this.naniteCaches.values()]
+        naniteCaches: [...this.naniteCaches.values()],
+        jumpPads: [...this.jumpPads.values()]
       }
       this.host.broadcast(stateMsg)
     }
@@ -940,6 +1067,38 @@ export class GameEngine {
         this.vy = 0
       }
 
+      // Dynamic Jump Pad Trigger Check
+      const now = Date.now()
+      if (now - this.lastJumpPadTriggerTime >= CFG.JUMP_PAD_COOLDOWN_MS) {
+        for (const pad of this.jumpPads.values()) {
+          const dist = Math.hypot(this.localPlayer.x - pad.x, this.localPlayer.z - pad.z)
+          if (dist <= CFG.JUMP_PAD_RADIUS && Math.abs(this.localPlayer.y - pad.y) <= 2.2) {
+            this.lastJumpPadTriggerTime = now
+            if (this.localPlayer.crouching) {
+              this.setCrouching(false)
+            }
+            this.vy = CFG.JUMP_PAD_LAUNCH_VY
+            sound.playJumpPadLaunch()
+            this.scene.triggerJumpPadEffect(pad.x, pad.y, pad.z)
+
+            const launchMsg: JumpPadLaunchMsg = {
+              type: 'jumpPadLaunch',
+              padId: pad.id,
+              playerId: this.localPlayer.id,
+              x: pad.x,
+              y: pad.y,
+              z: pad.z
+            }
+            if (this.mode === 'client') {
+              this.client?.send(launchMsg)
+            } else if (this.host) {
+              this.host.broadcast(launchMsg)
+            }
+            break
+          }
+        }
+      }
+
       // Camera position
       const eyeH = this.localPlayer.crouching ? CFG.CROUCH_EYE_HEIGHT : CFG.EYE_HEIGHT
       this.scene.camera.position.set(this.localPlayer.x, this.localPlayer.y + eyeH, this.localPlayer.z)
@@ -1059,7 +1218,18 @@ export class GameEngine {
       if (msg.naniteCaches) {
         this.syncNaniteCaches(msg.naniteCaches)
       }
+      if (msg.jumpPads) {
+        this.syncJumpPads(msg.jumpPads)
+      }
       this.callbacks.onLeaderboardUpdate(msg.leaderboard)
+    } else if (msg.type === 'jumpPadLaunch') {
+      this.scene.triggerJumpPadEffect(msg.x, msg.y, msg.z)
+      if (msg.playerId !== this.localPlayer.id) {
+        sound.playJumpPadLaunch()
+      }
+      if (this.host) {
+        this.host.broadcast(msg)
+      }
     } else if (msg.type === 'cachePickup') {
       this.naniteCaches.delete(msg.cacheId)
       this.scene.removeNaniteCache(msg.cacheId, true)
@@ -1217,6 +1387,7 @@ export class GameEngine {
     sound.stopFootsteps()
     sound.stopRecharge()
     this.naniteCaches.clear()
+    this.jumpPads.clear()
     this.scene.destroy()
     this.host?.destroy()
     this.client?.destroy()
