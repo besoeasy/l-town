@@ -21,7 +21,7 @@ echo "[3/7] Launching Container 1 (Host: Pilot-Alpha + Nostr Relay Server)..."
 podman run -d --name ltown-player1 --network ltown-net \
   -p 30300:30300 -p 9001:9001 \
   -v "$WORKSPACE/test:/app/test:Z" \
-  ltown-test:latest node server.js
+  ltown-test:latest npm run preview
 
 sleep 2
 
