@@ -145,6 +145,38 @@ class SoundEngine {
     }
   }
 
+  playNaniteMorph(toBlaster: boolean) {
+    this.init()
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+
+    const osc = this.ctx.createOscillator()
+    const gain = this.ctx.createGain()
+
+    if (toBlaster) {
+      // Snappy high-tech nanite reconfiguration & magnetic latch
+      osc.type = 'sawtooth'
+      osc.frequency.setValueAtTime(320, now)
+      osc.frequency.exponentialRampToValueAtTime(1120, now + 0.08)
+      gain.gain.setValueAtTime(0.16, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11)
+      osc.start(now)
+      osc.stop(now + 0.11)
+    } else {
+      // Smooth nanite demorph release hum back to open hand
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(740, now)
+      osc.frequency.exponentialRampToValueAtTime(260, now + 0.22)
+      gain.gain.setValueAtTime(0.10, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22)
+      osc.start(now)
+      osc.stop(now + 0.22)
+    }
+
+    osc.connect(gain)
+    gain.connect(this.ctx.destination)
+  }
+
   playSuper() {
     this.init()
     if (!this.ctx) return

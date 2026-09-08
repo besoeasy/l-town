@@ -4,6 +4,7 @@ import type { MapData, Box } from './map'
 import { groundHeight } from './map'
 import type { PlayerState, NaniteCache } from '../net/types'
 import { CFG, CORE_DETAILS } from './config'
+import { sound } from './audio'
 
 /**
  * Fresnel kinetic-shield dome (cosmetic). View-dependent rim glow with a
@@ -867,14 +868,15 @@ export class SceneRenderer {
   // Nanite hand <-> blaster morph (cosmetic): blaster on shot, hand after 5s idle
   private blasterMorph = 0 // 0 = open hand, 1 = blaster gun
   private blasterTarget = 0
+  private lastMorphTarget = 0
   private timeSinceShot = 99
   private fingerGroups: THREE.Group[] = []
-  private fingerClosedX: number[] = []
+  private fingerHandRotX: number[] = []
+  private fingerBlasterRotX: number[] = []
   private fingerBaseX: number[] = []
-  private blasterBarrel!: THREE.Mesh
+  private blasterBarrel!: THREE.Group
   private blasterCore!: THREE.Mesh
   private thumbMesh!: THREE.Mesh
-  private readonly thumbClosedY = 0.4
   private readonly morphDim = new THREE.Color(0x1e4a52)
   private firstPersonShield!: THREE.Group
   // Kinetic shield FX state (cosmetic): fade in/out, pulse clock, hit flash
@@ -993,27 +995,47 @@ export class SceneRenderer {
     palm.position.set(0, 0, -0.1)
     this.robotArm.add(palm)
 
-    // Central Palm Blaster Barrel & Energy Reactor Core
-    // (nanite-morphed: retracted while in open-hand form, extended in blaster form)
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.038, 0.07, 16), armJointMat)
-    barrel.rotation.x = Math.PI / 2
-    barrel.position.set(0, 0.005, -0.15)
-    this.robotArm.add(barrel)
-    this.blasterBarrel = barrel
+    // Central Heavy Pulse Cannon Assembly
+    // Morphed by nanites: retracted into palm in hand mode (m=0), extends out in blaster mode (m=1)
+    const blasterGrp = new THREE.Group()
+    blasterGrp.position.set(0, 0.005, -0.11)
 
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), this.armCoreMat)
-    core.position.set(0, 0.005, -0.15)
+    // Main heavy rifled barrel
+    const barrelGeo = new THREE.CylinderGeometry(0.032, 0.038, 0.15, 16)
+    const barrel = new THREE.Mesh(barrelGeo, armJointMat)
+    barrel.rotation.x = Math.PI / 2
+    blasterGrp.add(barrel)
+
+    // Ported muzzle brake / crown
+    const muzzleBrakeGeo = new THREE.CylinderGeometry(0.042, 0.040, 0.035, 16)
+    const muzzleBrake = new THREE.Mesh(muzzleBrakeGeo, armMetalMat)
+    muzzleBrake.rotation.x = Math.PI / 2
+    muzzleBrake.position.z = -0.075
+    blasterGrp.add(muzzleBrake)
+
+    // Accelerator glow ring
+    const glowRingGeo = new THREE.TorusGeometry(0.036, 0.007, 8, 16)
+    const glowRing = new THREE.Mesh(glowRingGeo, this.armCoreMat)
+    glowRing.position.z = -0.02
+    blasterGrp.add(glowRing)
+
+    this.robotArm.add(blasterGrp)
+    this.blasterBarrel = blasterGrp
+
+    // Central plasma reactor sphere
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 12), this.armCoreMat)
+    core.position.set(0, 0.005, -0.08)
     this.robotArm.add(core)
     this.blasterCore = core
 
-    // Articulated robotic fingers in firing grip posture
+    // Articulated robotic fingers (hand mode: extended forward / blaster mode: curled magnetic clamp)
     const fingerMat = armJointMat
     const tipMat = this.armConduitMat
 
-    const addFinger = (x: number, y: number, z: number, len: number, angleX = 0) => {
+    const addFinger = (x: number, y: number, z: number, len: number, handRotX: number, blasterRotX: number) => {
       const fGroup = new THREE.Group()
       fGroup.position.set(x, y, z)
-      fGroup.rotation.x = angleX
+      fGroup.rotation.x = handRotX
 
       const phalanx = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, len), fingerMat)
       phalanx.position.z = -len / 2
@@ -1025,28 +1047,29 @@ export class SceneRenderer {
 
       this.robotArm.add(fGroup)
       this.fingerGroups.push(fGroup)
-      this.fingerClosedX.push(angleX)
+      this.fingerHandRotX.push(handRotX)
+      this.fingerBlasterRotX.push(blasterRotX)
       this.fingerBaseX.push(x)
     }
 
-    addFinger(0.032, 0.01, -0.15, 0.07, 0.1)   // Index
-    addFinger(0.011, 0.012, -0.15, 0.08, 0.08)  // Middle
-    addFinger(-0.011, 0.012, -0.15, 0.075, 0.1) // Ring
-    addFinger(-0.032, 0.01, -0.15, 0.06, 0.14)  // Pinky
+    addFinger(0.034, 0.010, -0.15, 0.070, -0.08, 1.25)  // Index
+    addFinger(0.012, 0.012, -0.15, 0.080, -0.05, 1.30)  // Middle
+    addFinger(-0.012, 0.012, -0.15, 0.075, -0.05, 1.30) // Ring
+    addFinger(-0.034, 0.010, -0.15, 0.060, -0.10, 1.25) // Pinky
 
-    // Thumb on inner edge (tucks into grip in blaster form, rests open in hand form)
+    // Thumb on inner edge
     const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.02, 0.05), fingerMat)
-    thumb.position.set(-0.048, -0.01, -0.11)
-    thumb.rotation.y = 0.4
+    thumb.position.set(-0.050, -0.005, -0.11)
+    thumb.rotation.set(0.1, 0.45, -0.15)
     this.robotArm.add(thumb)
     this.thumbMesh = thumb
 
-    // Muzzle Flash Effect
+    // Muzzle Flash Effect (at tip of extended blaster barrel z = -0.285)
     this.muzzleFlash = new THREE.Group()
-    this.muzzleFlash.position.set(0, 0.005, -0.22)
-    const flashCore = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), this.armCoreMat)
-    const flashCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.01, 0.01), this.armCoreMat)
-    const flashCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.18, 0.01), this.armCoreMat)
+    this.muzzleFlash.position.set(0, 0.005, -0.285)
+    const flashCore = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), this.armCoreMat)
+    const flashCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.01, 0.01), this.armCoreMat)
+    const flashCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.22, 0.01), this.armCoreMat)
     this.muzzleFlash.add(flashCore, flashCross1, flashCross2)
     this.muzzleFlash.visible = false
     this.robotArm.add(this.muzzleFlash)
@@ -2185,23 +2208,32 @@ export class SceneRenderer {
     this.armCoreMat.color.setHex(color)
   }
 
-  /** Lerp factor 0 (open nanite hand) -> 1 (palm blaster). Cosmetic only. */
+  /** Lerp factor 0 (open nanite hand) -> 1 (heavy pulse blaster). Cosmetic only. */
   private applyBlasterMorph(t: number) {
     const m = THREE.MathUtils.clamp(t, 0, 1)
-    // Barrel + reactor core grow out of the palm in blaster form
-    const s = Math.max(0.001, m)
-    this.blasterBarrel.scale.setScalar(s)
-    this.blasterBarrel.visible = m > 0.02
-    this.blasterCore.scale.setScalar(s)
-    this.blasterCore.visible = m > 0.02
-    // Fingers: open/spread hand (m=0) -> curled firing grip (m=1)
+
+    // 1. Blaster Barrel & Reactor: extends out of palm and scales up
+    const barrelZ = THREE.MathUtils.lerp(-0.11, -0.21, m)
+    this.blasterBarrel.position.z = barrelZ
+    this.blasterBarrel.scale.set(m, m, THREE.MathUtils.lerp(0.01, 1.0, m))
+    this.blasterBarrel.visible = m > 0.01
+
+    this.blasterCore.position.z = barrelZ + 0.04
+    this.blasterCore.scale.setScalar(m)
+    this.blasterCore.visible = m > 0.01
+
+    // 2. Fingers: open natural hand (m=0) -> tight magnetic cowling clamp around barrel (m=1)
     for (let i = 0; i < this.fingerGroups.length; i++) {
       const g = this.fingerGroups[i]
-      g.rotation.x = this.fingerClosedX[i] - (1 - m) * 0.55
-      g.position.x = this.fingerBaseX[i] * (1 + (1 - m) * 0.35)
+      g.rotation.x = THREE.MathUtils.lerp(this.fingerHandRotX[i], this.fingerBlasterRotX[i], m)
+      g.position.x = THREE.MathUtils.lerp(this.fingerBaseX[i], this.fingerBaseX[i] * 0.55, m)
+      g.position.z = THREE.MathUtils.lerp(-0.15, -0.13, m)
     }
-    // Thumb tucks into the grip in blaster form
-    this.thumbMesh.rotation.y = this.thumbClosedY - (1 - m) * 0.5
+
+    // 3. Thumb: rests open in hand mode -> folds flat into chassis grip in blaster mode
+    this.thumbMesh.rotation.y = THREE.MathUtils.lerp(0.45, 1.15, m)
+    this.thumbMesh.rotation.z = THREE.MathUtils.lerp(-0.15, 0.40, m)
+    this.thumbMesh.position.x = THREE.MathUtils.lerp(-0.050, -0.038, m)
   }
 
   setFirstPersonShield(active: boolean) {
@@ -2424,11 +2456,17 @@ export class SceneRenderer {
 
     // Nanite revert: blaster -> open hand after 5s without a shot
     this.timeSinceShot += dt
-    if (this.timeSinceShot > 5) {
+    if (this.timeSinceShot > 5.0) {
       this.blasterTarget = 0
     }
+
+    if (this.blasterTarget !== this.lastMorphTarget) {
+      this.lastMorphTarget = this.blasterTarget
+      sound.playNaniteMorph(this.blasterTarget === 1)
+    }
+
     if (this.blasterMorph !== this.blasterTarget) {
-      const rate = this.blasterTarget > this.blasterMorph ? 8 : 1.5
+      const rate = this.blasterTarget > this.blasterMorph ? 14.0 : 2.2
       this.blasterMorph = THREE.MathUtils.clamp(
         this.blasterMorph + Math.sign(this.blasterTarget - this.blasterMorph) * rate * dt,
         0, 1
