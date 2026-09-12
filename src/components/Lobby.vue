@@ -178,7 +178,7 @@ const handleJoinInput = () => {
             <div class="control-box">
               <h3>3049 CANON CHARTER</h3>
               <p>
-                Surface environments are stripped by Helios solar storms. Humans remain in orbit and pilot expendable
+                The RX-11 was created to explore other planets — as miners, as army, and as researchers. Humans remain in orbit and pilot expendable
                 <strong>RX-11</strong> humanoid nanite swarms.
               </p>
               <p>

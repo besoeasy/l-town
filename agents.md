@@ -39,7 +39,7 @@
 ## 3. Game Canon & Mechanics (from commit `e392b58b6b4981ece32cff242cbda5a07fceb0f4`)
 
 ### 3.1 Canon Lore (3049 — The Remote Age)
-* Surface environments are uninhabitable due to solar storms. Humans stay in orbit and operate expendable **RX-11** humanoid nanite chassis on the ground.
+* No Helios Storm ever occurred. The **RX-11** was created to explore other planets — as miners, as army, and as researchers. Humans stay in orbit and operate expendable **RX-11** humanoid nanite chassis on the ground.
 * **Standard Chassis**: Fixed by arena charter. Every unit has identical max hull, base movement speed, hitbox, and abilities.
 * **Hull = Nanite Census**: Nanite count serves simultaneously as health, ammo, and mass:
   - Firing a single shot deducts **2 Hull**.
